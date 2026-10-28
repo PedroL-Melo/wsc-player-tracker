@@ -1,9 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Trophy,
-  Flame,
-  Target,
-  Activity,
   Plus,
   Play,
   Square,
@@ -11,14 +8,14 @@ import {
   Shield,
   Calendar,
   TrendingUp,
-  Zap,
   Edit3,
   Check,
   X,
-  Eye,
   Monitor,
   ArrowRightLeft,
   UserPlus,
+  ChevronsRight,
+  Star,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -35,41 +32,65 @@ import {
 const API_BASE = 'http://127.0.0.1:8000';
 const WS_URL = 'ws://127.0.0.1:8000/ws/live';
 
-function getOverallTier(ovr) {
+/**
+ * Cores autênticas das etiquetas de posição do World Soccer Champs
+ */
+function getWscPositionStyle(pos) {
+  const p = (pos || 'AT').toUpperCase();
+  if (p === 'GL' || p === 'GOL') {
+    return { label: 'GL', bg: 'bg-[#D6B892] text-[#1A1612]' };
+  }
+  if (['ZG', 'ZAG', 'LD', 'LE', 'LAT', 'PD'].includes(p)) {
+    return { label: p.slice(0, 2), bg: 'bg-[#E2D4A5] text-[#1A1812]' };
+  }
+  if (['VL', 'VOL', 'MO', 'MEI', 'MC'].includes(p)) {
+    return { label: p === 'MEI' ? 'MO' : p.slice(0, 2), bg: 'bg-[#A6D6B8] text-[#102016]' };
+  }
+  return { label: p === 'ATA' ? 'AT' : p.slice(0, 2), bg: 'bg-[#B2C2E8] text-[#121829]' };
+}
+
+/**
+ * Estilo de Carta EA Sports FC (Bronze, Prata, Ouro Raro e Especial Evolução)
+ */
+function getEaFcCardStyle(ovr) {
   const val = Number(ovr) || 60;
   if (val >= 85) {
     return {
-      tierName: 'Esmeralda',
-      frameBg: 'bg-gradient-to-b from-emerald-300 via-emerald-500 to-teal-800',
-      innerBg: 'bg-gradient-to-b from-emerald-400 via-emerald-500 to-teal-700 text-slate-950',
-      tagBg: 'bg-slate-950/85 text-emerald-300',
-      accentColor: '#10b981',
+      tierLabel: 'ESPECIAL',
+      cardBg: 'bg-gradient-to-b from-[#10B981] via-[#047857] to-[#064E3B] border-[#6EE7B7]',
+      textColor: 'text-white',
+      subTextColor: 'text-emerald-100',
+      dividerColor: 'border-emerald-300/40',
+      statBoxBg: 'bg-black/25 text-white',
     };
   }
   if (val >= 75) {
     return {
-      tierName: 'Ouro',
-      frameBg: 'bg-gradient-to-b from-amber-200 via-amber-400 to-yellow-700',
-      innerBg: 'bg-gradient-to-b from-amber-300 via-amber-400 to-yellow-600 text-slate-950',
-      tagBg: 'bg-slate-950/85 text-amber-300',
-      accentColor: '#fbbf24',
+      tierLabel: 'OURO',
+      cardBg: 'bg-gradient-to-b from-[#FCE78C] via-[#DFAC26] to-[#9E6E0B] border-[#FEF08A]',
+      textColor: 'text-[#211805]',
+      subTextColor: 'text-[#3A2B09]',
+      dividerColor: 'border-[#211805]/25',
+      statBoxBg: 'bg-[#211805]/10 text-[#211805]',
     };
   }
   if (val >= 65) {
     return {
-      tierName: 'Prata',
-      frameBg: 'bg-gradient-to-b from-slate-100 via-slate-400 to-slate-600',
-      innerBg: 'bg-gradient-to-b from-slate-200 via-slate-300 to-slate-500 text-slate-950',
-      tagBg: 'bg-slate-950/85 text-slate-200',
-      accentColor: '#cbd5e1',
+      tierLabel: 'PRATA',
+      cardBg: 'bg-gradient-to-b from-[#E5EBF2] via-[#B4BFCF] to-[#778396] border-[#F8FAFC]',
+      textColor: 'text-[#131822]',
+      subTextColor: 'text-[#263042]',
+      dividerColor: 'border-[#131822]/25',
+      statBoxBg: 'bg-[#131822]/10 text-[#131822]',
     };
   }
   return {
-    tierName: 'Bronze',
-    frameBg: 'bg-gradient-to-b from-amber-600 via-orange-800 to-stone-900',
-    innerBg: 'bg-gradient-to-b from-amber-700 via-orange-800 to-stone-900 text-amber-100',
-    tagBg: 'bg-slate-950/80 text-amber-300',
-    accentColor: '#d97706',
+    tierLabel: 'BRONZE',
+    cardBg: 'bg-gradient-to-b from-[#D6926A] via-[#A15C38] to-[#5E3019] border-[#E7B190]',
+    textColor: 'text-[#1E0E06]',
+    subTextColor: 'text-[#33180A]',
+    dividerColor: 'border-[#1E0E06]/25',
+    statBoxBg: 'bg-black/15 text-[#FFF5EE]',
   };
 }
 
@@ -77,58 +98,43 @@ function getEventMeta(event) {
   switch (event.event_type) {
     case 'GOAL':
       return {
-        title: 'Gol marcado',
+        badge: '⚽ GOL',
+        title: 'Gol registrado na súmula',
         detail: `Gols na temporada: ${event.old_value} → ${event.new_value}`,
-        delta: `+${Number(event.new_value) - Number(event.old_value) || 1} gol`,
-        dotColor: 'bg-emerald-400 ring-emerald-500/30',
-        textColor: 'text-emerald-400',
-        pillClass: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-        bannerClass: 'bg-[#0D131F] border-emerald-500 text-white shadow-emerald-500/20',
-        icon: Flame,
+        accent: 'bg-[#22C55E] text-[#091910]',
+        borderLeft: 'border-l-[#22C55E]',
       };
     case 'ASSIST':
       return {
-        title: 'Assistência registrada',
+        badge: '👟 ASSIST',
+        title: 'Assistência confirmada',
         detail: `Assistências na temporada: ${event.old_value} → ${event.new_value}`,
-        delta: `+${Number(event.new_value) - Number(event.old_value) || 1} assist.`,
-        dotColor: 'bg-cyan-400 ring-cyan-400/30',
-        textColor: 'text-cyan-400',
-        pillClass: 'bg-cyan-400/15 text-cyan-300 border-cyan-400/30',
-        bannerClass: 'bg-[#0D131F] border-cyan-400 text-white shadow-cyan-400/20',
-        icon: Target,
+        accent: 'bg-[#38BDF8] text-[#082030]',
+        borderLeft: 'border-l-[#38BDF8]',
       };
     case 'OVR_UP':
       return {
-        title: 'Evolução de Overall',
-        detail: `Overall atualizado de ${event.old_value} para ${event.new_value}`,
-        delta: `OVR ${event.new_value}`,
-        dotColor: 'bg-amber-400 ring-amber-400/30',
-        textColor: 'text-amber-400',
-        pillClass: 'bg-amber-400/15 text-amber-300 border-amber-400/30',
-        bannerClass: 'bg-[#0D131F] border-amber-400 text-white shadow-amber-400/20',
-        icon: TrendingUp,
+        badge: '★ OVR',
+        title: 'Pontuação atualizada',
+        detail: `Pontuação mudou de ${event.old_value} para ${event.new_value}`,
+        accent: 'bg-[#FACC15] text-[#211805]',
+        borderLeft: 'border-l-[#FACC15]',
       };
     case 'TRANSFER':
       return {
-        title: 'Transferência de clube',
+        badge: '⇄ CLUBE',
+        title: 'Transferência confirmada',
         detail: `${event.old_value} → ${event.new_value}`,
-        delta: event.new_value,
-        dotColor: 'bg-purple-400 ring-purple-400/30',
-        textColor: 'text-purple-300',
-        pillClass: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
-        bannerClass: 'bg-[#0D131F] border-purple-400 text-white shadow-purple-500/20',
-        icon: ArrowRightLeft,
+        accent: 'bg-[#B2C2E8] text-[#121829]',
+        borderLeft: 'border-l-[#B2C2E8]',
       };
     default:
       return {
+        badge: 'INFO',
         title: event.event_type,
         detail: `${event.old_value || ''} → ${event.new_value || ''}`,
-        delta: event.new_value,
-        dotColor: 'bg-slate-400 ring-slate-500/30',
-        textColor: 'text-slate-300',
-        pillClass: 'bg-slate-800 text-slate-300 border-slate-700',
-        bannerClass: 'bg-[#0D131F] border-slate-600 text-white',
-        icon: Zap,
+        accent: 'bg-slate-600 text-white',
+        borderLeft: 'border-l-slate-500',
       };
   }
 }
@@ -156,12 +162,12 @@ export default function App() {
 
   const [newCareerForm, setNewCareerForm] = useState({
     player_name: '',
-    position: 'ATA',
+    position: 'AT',
     nationality: 'Brasil',
     target_window_title: '',
     club_name: '',
-    age: 17,
-    overall: 62,
+    age: 18,
+    overall: 58,
   });
 
   const [newSeasonForm, setNewSeasonForm] = useState({
@@ -172,8 +178,8 @@ export default function App() {
   const [isEditingCurrent, setIsEditingCurrent] = useState(false);
   const [editSeasonForm, setEditSeasonForm] = useState({
     club_name: '',
-    age: 17,
-    overall: 60,
+    age: 18,
+    overall: 58,
     matches: 0,
     goals: 0,
     assists: 0,
@@ -189,7 +195,7 @@ export default function App() {
     setLiveToast(toastObj);
     setTimeout(() => {
       setLiveToast((prev) => (prev?.id === toastObj.id ? null : prev));
-    }, 4200);
+    }, 4000);
   }, []);
 
   const fetchWindows = useCallback(async () => {
@@ -208,7 +214,7 @@ export default function App() {
             w.toLowerCase().includes('ldplayer') ||
             w.toLowerCase().includes('bluestacks')
         );
-        return { ...prev, target_window_title: mumu || list[0] || 'MuMu Player' };
+        return { ...prev, target_window_title: mumu || list[0] || 'Android Device' };
       });
     } catch (err) {
       console.error('Erro ao listar janelas:', err);
@@ -271,7 +277,7 @@ export default function App() {
         setWatcher(data);
       }
     } catch (err) {
-      // ignora silenciosamente se o servidor estiver reiniciando
+      // ignora caso servidor esteja reiniciando
     }
   }, []);
 
@@ -327,11 +333,10 @@ export default function App() {
               fetchCareers();
               triggerToast({
                 id: Date.now(),
+                badge: 'NOVA ÉPOCA',
                 title: `Temporada #${payload.season?.season_number} iniciada`,
-                detail: `${payload.season?.club_name} • Overall ${payload.season?.overall}`,
-                bannerClass: 'bg-[#0D131F] border-emerald-400 text-white shadow-emerald-500/20',
-                textColor: 'text-emerald-400',
-                icon: Calendar,
+                detail: `${payload.season?.club_name} • Pontuação ${payload.season?.overall}`,
+                accent: 'bg-[#22C55E] text-[#091910]',
               });
             }
           }
@@ -378,7 +383,7 @@ export default function App() {
         setWatcher(data);
       }
     } catch (err) {
-      console.error('Erro ao alternar Watcher:', err);
+      console.error('Erro ao alternar leitura:', err);
     }
   };
 
@@ -394,9 +399,9 @@ export default function App() {
           position: newCareerForm.position,
           nationality: newCareerForm.nationality.trim() || 'Brasil',
           target_window_title: newCareerForm.target_window_title.trim(),
-          club_name: newCareerForm.club_name.trim() || 'Clube Inicial',
-          age: Number(newCareerForm.age) || 17,
-          overall: Number(newCareerForm.overall) || 60,
+          club_name: newCareerForm.club_name.trim() || 'Ortri',
+          age: Number(newCareerForm.age) || 18,
+          overall: Number(newCareerForm.overall) || 58,
         }),
       });
       if (res.ok) {
@@ -404,12 +409,12 @@ export default function App() {
         setShowNewCareerModal(false);
         setNewCareerForm({
           player_name: '',
-          position: 'ATA',
+          position: 'AT',
           nationality: 'Brasil',
           target_window_title: newCareerForm.target_window_title,
           club_name: '',
-          age: 17,
-          overall: 62,
+          age: 18,
+          overall: 58,
         });
         await fetchCareers();
         setSelectedCareerId(created.career.id);
@@ -463,7 +468,7 @@ export default function App() {
         await fetchCareers();
       }
     } catch (err) {
-      console.error('Erro ao salvar alterações da temporada:', err);
+      console.error('Erro ao salvar alterações:', err);
     }
   };
 
@@ -481,11 +486,10 @@ export default function App() {
       if (delta > 0) {
         triggerToast({
           id: Date.now(),
-          title: 'Troféu adicionado à galeria',
-          detail: `Total na temporada atual: ${nextTrophies}`,
-          bannerClass: 'bg-[#0D131F] border-amber-400 text-white shadow-amber-400/20',
-          textColor: 'text-amber-400',
-          icon: Trophy,
+          badge: '🏆 TÍTULO',
+          title: 'Troféu adicionado ao currículo',
+          detail: `Total na temporada: ${nextTrophies}`,
+          accent: 'bg-[#FACC15] text-[#211805]',
         });
       }
     } catch (err) {
@@ -511,7 +515,8 @@ export default function App() {
   const isWatchingCurrent =
     watcher.is_running && watcher.active_career_id === selectedCareerId;
 
-  const overallTier = getOverallTier(currentSeason?.overall || 60);
+  const cardStyle = getEaFcCardStyle(currentSeason?.overall || 58);
+  const posStyle = getWscPositionStyle(career?.position);
   const gaPerMatch =
     totals.matches > 0
       ? ((totals.goals + totals.assists) / totals.matches).toFixed(2)
@@ -520,34 +525,34 @@ export default function App() {
   const chartData = seasons.map((s) => ({
     name: `T${s.season_number} (${s.age}a)`,
     club: s.club_name,
-    Overall: s.overall,
+    Pontuação: s.overall,
     Gols: s.goals,
     Assistências: s.assists,
     Jogos: s.matches,
   }));
 
   return (
-    <div className="min-h-screen flex flex-col text-slate-100">
-      {/* BANNER DE EVENTO EM TEMPO REAL (BROADCAST LOWER-THIRD / SCOREBUG ALERT) */}
+    <div className="min-h-screen flex flex-col text-slate-100 pitch-lines">
+      {/* Linha divisória central do meio-campo no fundo */}
+      <div className="fixed top-6 bottom-6 left-1/2 -translate-x-1/2 w-[2px] bg-white/[0.08] pointer-events-none z-0"></div>
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white/[0.12] pointer-events-none z-0"></div>
+
+      {/* NOTIFICAÇÃO DE PARTIDA (ESTILO PLACAR DE TV / WSC) */}
       {liveToast && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 transition-all duration-300">
-          <div
-            className={`flex items-center gap-4 px-5 py-3 rounded-lg border-l-4 border bg-[#0D131F]/95 backdrop-blur-md shadow-2xl ${liveToast.bannerClass}`}
-          >
-            <div className="p-2 rounded-md bg-slate-900 border border-slate-800">
-              {liveToast.icon && (
-                <liveToast.icon className={`w-5 h-5 ${liveToast.textColor || 'text-emerald-400'}`} />
-              )}
-            </div>
-            <div className="pr-4">
-              <div className="font-display text-xl font-bold tracking-wide leading-none">
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50">
+          <div className="flex items-center gap-3.5 px-4 py-3 rounded-lg bg-[#1C213E] border-2 border-[#353D6B] shadow-2xl">
+            <span className={`px-2.5 py-1 rounded text-xs font-extrabold tracking-wide ${liveToast.accent}`}>
+              {liveToast.badge}
+            </span>
+            <div className="pr-3">
+              <div className="text-sm font-bold text-white leading-tight">
                 {liveToast.title}
               </div>
-              <div className="text-xs text-slate-300 mt-1">{liveToast.detail}</div>
+              <div className="text-xs text-slate-300">{liveToast.detail}</div>
             </div>
             <button
               onClick={() => setLiveToast(null)}
-              className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white"
+              className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white"
             >
               <X className="w-4 h-4" />
             </button>
@@ -555,39 +560,44 @@ export default function App() {
         </div>
       )}
 
-      {/* 1. BARRA DE CONTROLE DE TRANSMISSÃO (BROADCAST SCOREBUG HEADER) */}
-      <header className="sticky top-0 z-40 h-14 bg-[#06090F]/95 backdrop-blur-md border-b border-[#1E2D45] px-6">
-        <div className="max-w-[1600px] h-full mx-auto flex items-center justify-between gap-4">
-          {/* Identidade do Sistema */}
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded bg-emerald-500 flex items-center justify-center text-slate-950 font-display font-extrabold text-lg tracking-tighter">
-              WSC
+      {/* 1. TOP BAR INSPIRADA NO CABEÇALHO DO WORLD SOCCER CHAMPS */}
+      <header className="sticky top-0 z-40 h-16 bg-[#111613]/95 backdrop-blur-md border-b-2 border-white/15 px-6 shadow-lg">
+        <div className="max-w-[1540px] h-full mx-auto flex items-center justify-between gap-4">
+          {/* Escudo do Clube Atual + Nome do Clube (Igual ao topo do WSC) */}
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-full bg-white p-1.5 flex items-center justify-center shadow">
+              <div className="w-full h-full rounded-full border-2 border-[#0E5A45] flex overflow-hidden">
+                <div className="w-1/2 h-full bg-[#0E5A45]"></div>
+                <div className="w-1/2 h-full bg-white"></div>
+              </div>
             </div>
-            <div className="flex items-baseline gap-2.5">
-              <span className="font-display text-xl font-extrabold tracking-tight text-white">
-                Career Telemetry
-              </span>
-              <span className="hidden sm:inline-block text-xs text-slate-400 border-l border-[#1E2D45] pl-2.5">
-                Scouting & OCR em segundo plano
-              </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-display text-2xl font-extrabold tracking-wide text-white uppercase">
+                  {currentSeason?.club_name || 'Modo Carreira'}
+                </span>
+                <span className="px-2 py-0.5 rounded bg-white/10 text-[11px] font-bold text-emerald-300">
+                  WSC Tracker
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Seletor de Carreira + Ação */}
+          {/* Seletor de Jogador + Botão Novo Jogador */}
           <div className="flex items-center gap-2.5">
-            <div className="flex items-center bg-[#0D131F] border border-[#1E2D45] rounded-md px-3 py-1.5">
-              <span className="text-xs text-slate-400 mr-2">Jogador:</span>
+            <div className="flex items-center bg-[#1A221D] border border-white/15 rounded-lg px-3 py-1.5">
+              <span className="text-xs font-semibold text-slate-300 mr-2">Carreira:</span>
               <select
                 value={selectedCareerId || ''}
                 onChange={(e) => setSelectedCareerId(Number(e.target.value))}
-                className="bg-transparent text-xs font-semibold text-white focus:outline-none cursor-pointer pr-2"
+                className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer pr-2"
               >
-                {careers.length === 0 && <option value="">Nenhuma carreira registrada</option>}
+                {careers.length === 0 && <option value="">Nenhum jogador criado</option>}
                 {careers.map((c) => (
-                  <option key={c.id} value={c.id} className="bg-[#0D131F] text-white">
+                  <option key={c.id} value={c.id} className="bg-[#141A17] text-white">
                     {c.player_name} ({c.position}) —{' '}
                     {c.current_season
-                      ? `${c.current_season.club_name} • OVR ${c.current_season.overall}`
+                      ? `${c.current_season.club_name} [OVR ${c.current_season.overall}]`
                       : 'Sem temporada'}
                   </option>
                 ))}
@@ -599,392 +609,293 @@ export default function App() {
                 fetchWindows();
                 setShowNewCareerModal(true);
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#0D131F] hover:bg-[#162032] border border-[#1E2D45] text-xs font-semibold text-slate-200 transition"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#232E27] hover:bg-[#2E3C33] border border-white/15 text-xs font-bold text-white transition"
             >
-              <UserPlus className="w-3.5 h-3.5 text-emerald-400" />
-              Nova carreira
+              <UserPlus className="w-3.5 h-3.5 text-[#FACC15]" />
+              Novo Jogador
             </button>
           </div>
 
-          {/* Status do Olho Biônico + WebSocket */}
-          <div className="flex items-center gap-2.5">
-            {isWatchingCurrent ? (
-              <div className="flex items-center gap-2 px-3 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                <span className="text-xs font-semibold text-emerald-300">
-                  Olho Biônico ativo
-                </span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 px-3 py-1 rounded-md bg-[#0D131F] border border-[#1E2D45]">
-                <span className="h-2 w-2 rounded-full bg-slate-500"></span>
-                <span className="text-xs text-slate-400">Leitura em espera</span>
-              </div>
-            )}
-
+          {/* Botão de Monitoramento no estilo do botão do WSC */}
+          <div className="flex items-center gap-3">
             <button
               onClick={handleToggleWatcher}
               disabled={!selectedCareerId}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-xs font-semibold transition ${
+              className={`flex items-center gap-2.5 px-4 py-2 rounded-lg text-xs font-extrabold uppercase tracking-wider transition shadow ${
                 isWatchingCurrent
-                  ? 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30'
-                  : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold'
+                  ? 'bg-[#FACC15] hover:bg-[#EAB308] text-[#1C1404]'
+                  : 'bg-[#22C55E] hover:bg-[#16A34A] text-[#07170D]'
               } disabled:opacity-40`}
             >
               {isWatchingCurrent ? (
                 <>
-                  <Square className="w-3 h-3 fill-current" />
-                  Pausar leitura
+                  <span className="h-2 w-2 rounded-full bg-[#1C1404] animate-ping"></span>
+                  Lendo o Jogo Ao Vivo
+                  <Square className="w-3 h-3 fill-current ml-1" />
                 </>
               ) : (
                 <>
-                  <Play className="w-3 h-3 fill-current" />
-                  Ativar Olho Biônico
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  Monitorar Emulador
                 </>
               )}
             </button>
-
-            <div
-              title={wsConnected ? 'Canal ao vivo conectado' : 'Reconectando ao servidor local'}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border font-mono text-[11px] ${
-                wsConnected
-                  ? 'bg-[#0D131F] border-[#1E2D45] text-emerald-400'
-                  : 'bg-rose-950/40 border-rose-800/50 text-rose-400'
-              }`}
-            >
-              <Activity className="w-3 h-3" />
-              {wsConnected ? 'WS' : 'OFF'}
-            </div>
           </div>
         </div>
       </header>
 
-      {/* ÁREA DE TRABALHO PRINCIPAL */}
-      <main className="flex-1 max-w-[1600px] w-full mx-auto px-6 py-6 space-y-6">
+      {/* CONTEÚDO PRINCIPAL */}
+      <main className="relative z-10 flex-1 max-w-[1540px] w-full mx-auto px-6 py-6 space-y-6">
         {loading ? (
           <div className="flex items-center justify-center h-96">
-            <div className="flex items-center gap-3 text-slate-400 text-sm">
-              <RefreshCw className="w-5 h-5 text-emerald-400 animate-spin" />
-              Sincronizando banco de dados da carreira...
+            <div className="flex items-center gap-3 text-slate-300 text-sm font-semibold">
+              <RefreshCw className="w-5 h-5 text-[#FACC15] animate-spin" />
+              Carregando carreira do jogador...
             </div>
           </div>
         ) : !career ? (
-          <div className="bg-[#0D131F] border border-[#1E2D45] rounded-lg p-12 max-w-lg mx-auto my-12">
-            <Trophy className="w-10 h-10 text-amber-400 mb-4" />
-            <h2 className="font-display text-3xl font-bold text-white mb-2">
-              Nenhuma carreira cadastrada
+          <div className="bg-[#1A1F3D] border-2 border-[#2A325E] rounded-xl p-12 max-w-lg mx-auto my-12 text-center">
+            <Trophy className="w-12 h-12 text-[#FACC15] mx-auto mb-3" />
+            <h2 className="font-display text-3xl font-extrabold text-white uppercase mb-2">
+              Comece sua Carreira no WSC
             </h2>
-            <p className="text-sm text-slate-400 mb-6 leading-relaxed">
-              Cadastre seu jogador e escolha a janela do emulador para que o leitor óptico
-              registre partidas, gols, assistências e evolução de Overall automaticamente.
+            <p className="text-sm text-slate-300 mb-6">
+              Cadastre seu jogador e escolha a janela do emulador para registrar automaticamente
+              os jogos, gols, assistências e evolução de pontuação.
             </p>
             <button
               onClick={() => {
                 fetchWindows();
                 setShowNewCareerModal(true);
               }}
-              className="px-5 py-2.5 rounded-md bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition"
+              className="px-6 py-3 rounded-lg bg-[#22C55E] hover:bg-[#16A34A] text-[#07170D] font-extrabold text-xs uppercase tracking-wider transition"
             >
-              Criar primeira carreira
+              + Criar Jogador
             </button>
           </div>
         ) : (
           <>
-            {/* 2. DOSSIÊ DO JOGADOR (HERO ASSIMÉTRICO + LEDGER DE TOTAIS) */}
-            <section className="bg-[#0D131F] border border-[#1E2D45] rounded-lg overflow-hidden">
-              <div className="grid grid-cols-1 xl:grid-cols-12">
-                {/* Identidade + Escudo EA FC (7 colunas) */}
-                <div className="xl:col-span-7 p-6 flex flex-col sm:flex-row items-start sm:items-center gap-6">
-                  {/* O Elemento Memorável: Escudo Geométrico de Overall */}
-                  <div className={`p-[2px] w-28 h-36 shrink-0 player-crest ${overallTier.frameBg}`}>
-                    <div
-                      className={`w-full h-full player-crest flex flex-col items-center justify-between pt-3 pb-5 px-2 ${overallTier.innerBg}`}
-                    >
-                      <span className="font-mono text-[11px] font-semibold tracking-tight opacity-85">
-                        {career.position || 'ATA'}
+            {/* 2. VESTIÁRIO DO JOGADOR: CARTA EA FC + PAINEL LIMPO SOFASCORE / WSC */}
+            <section className="bg-[#121814]/90 backdrop-blur-xs border-2 border-white/15 rounded-xl p-6 shadow-2xl">
+              <div className="flex flex-col xl:flex-row items-center xl:items-stretch gap-7">
+                {/* CARTA FÍSICA ESTILO EA SPORTS FC (UT CARD) */}
+                <div
+                  className={`w-48 shrink-0 eafc-card border-2 p-3.5 flex flex-col justify-between shadow-xl ${cardStyle.cardBg} ${cardStyle.textColor}`}
+                >
+                  {/* Topo da Carta: OVR + Posição + Bandeira à esquerda | Ícone Camisa à direita */}
+                  <div className="flex items-start justify-between relative z-10">
+                    <div className="flex flex-col items-center leading-none">
+                      <span className="font-display text-5xl font-extrabold tracking-tighter tabular-nums">
+                        {currentSeason?.overall ?? 58}
                       </span>
-                      <span className="font-display text-6xl font-extrabold italic leading-none tracking-tighter tabular-nums">
-                        {currentSeason?.overall ?? '--'}
+                      <span className="font-display text-lg font-extrabold uppercase tracking-wider mt-0.5">
+                        {posStyle.label}
                       </span>
-                      <span
-                        className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-sm ${overallTier.tagBg}`}
-                      >
-                        {overallTier.tierName}
+                      <div className={`w-7 border-t my-1 ${cardStyle.dividerColor}`}></div>
+                      {/* Mini Bandeira do Brasil estilo WSC */}
+                      <div className="w-6 h-4 rounded-xs bg-[#16A34A] flex items-center justify-center border border-black/20 shadow-2xs">
+                        <div className="w-3 h-2 bg-[#FACC15] rotate-45 flex items-center justify-center">
+                          <div className="w-1.5 h-1.5 rounded-full bg-[#1E3A8A]"></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Silhueta / Camisa Número 10 */}
+                    <div className="w-20 h-20 rounded-full bg-black/10 flex flex-col items-center justify-center border border-black/10">
+                      <span className="font-display text-3xl font-extrabold opacity-85">
+                        #{currentSeason?.season_number || 1}
+                      </span>
+                      <span className="text-[9px] font-extrabold uppercase tracking-widest opacity-70">
+                        ÉPOCA
                       </span>
                     </div>
                   </div>
 
-                  {/* Dados de Identificação e Contexto */}
-                  <div className="space-y-2.5 min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
-                      <span className="px-2.5 py-0.5 rounded bg-[#162032] border border-[#1E2D45] text-slate-200 font-medium">
-                        {career.nationality || 'Brasil'}
-                      </span>
-                      <span className="px-2.5 py-0.5 rounded bg-amber-400/10 border border-amber-400/30 text-amber-300 font-medium tabular-nums">
-                        Pico na carreira: OVR {totals.peak_overall}
-                      </span>
-                      <span className="px-2.5 py-0.5 rounded bg-[#06090F] border border-[#1E2D45] text-slate-400 font-mono text-[11px] flex items-center gap-1.5">
-                        <Monitor className="w-3 h-3 text-cyan-400" />
-                        {career.target_window_title}
-                      </span>
-                    </div>
-
-                    <h1 className="font-display text-4xl sm:text-5xl font-extrabold tracking-tight text-white leading-none">
-                      {career.player_name}
-                    </h1>
-
-                    <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-slate-300 pt-0.5">
-                      <span className="flex items-center gap-1.5 font-semibold text-white">
-                        <Shield className="w-4 h-4 text-emerald-400" />
-                        {currentSeason?.club_name || 'Sem clube'}
-                      </span>
-                      <span className="text-slate-400 tabular-nums">
-                        {currentSeason?.age ?? '--'} anos
-                      </span>
-                      <span className="text-emerald-400 font-semibold tabular-nums">
-                        Temporada #{currentSeason?.season_number ?? 1}
-                      </span>
-                    </div>
-
-                    {isWatchingCurrent && watcher.last_raw_ocr && (
-                      <div className="pt-1">
-                        <span className="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-[#06090F] border border-[#1E2D45] font-mono text-[11px] text-slate-400">
-                          <Eye className="w-3 h-3 text-emerald-400" />
-                          Leitura óptica:{' '}
-                          <strong className="text-emerald-300 font-normal">
-                            {(watcher.last_raw_ocr.raw_row_tokens || []).join(' · ')}
-                          </strong>
-                        </span>
+                  {/* Nome na Carta */}
+                  <div className="my-2 text-center relative z-10">
+                    <div className={`border-y py-1 ${cardStyle.dividerColor}`}>
+                      <div className="font-display text-xl font-extrabold uppercase tracking-tight truncate px-1">
+                        {career.player_name}
                       </div>
-                    )}
+                    </div>
+                  </div>
+
+                  {/* Mini Atributos de Carreira na Base da Carta */}
+                  <div className="grid grid-cols-2 gap-1.5 text-xs relative z-10">
+                    <div className={`px-2 py-1 rounded flex items-center justify-between font-bold tabular-nums ${cardStyle.statBoxBg}`}>
+                      <span className="opacity-75 text-[10px]">JOG</span>
+                      <span>{totals.matches}</span>
+                    </div>
+                    <div className={`px-2 py-1 rounded flex items-center justify-between font-bold tabular-nums ${cardStyle.statBoxBg}`}>
+                      <span className="opacity-75 text-[10px]">GOL</span>
+                      <span>{totals.goals}</span>
+                    </div>
+                    <div className={`px-2 py-1 rounded flex items-center justify-between font-bold tabular-nums ${cardStyle.statBoxBg}`}>
+                      <span className="opacity-75 text-[10px]">ASS</span>
+                      <span>{totals.assists}</span>
+                    </div>
+                    <div className={`px-2 py-1 rounded flex items-center justify-between font-bold tabular-nums ${cardStyle.statBoxBg}`}>
+                      <span className="opacity-75 text-[10px]">IDA</span>
+                      <span>{currentSeason?.age ?? 18}</span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Ledger Arquitetônico de Totais da Carreira (5 colunas com divisórias de 1px) */}
-                <div className="xl:col-span-5 border-t xl:border-t-0 xl:border-l border-[#1E2D45] bg-[#090E17] grid grid-cols-2 sm:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-[#1E2D45]">
-                  <div className="p-4 flex flex-col justify-between">
-                    <span className="text-xs text-slate-400">Jogos</span>
-                    <div className="font-display text-4xl font-extrabold text-white tabular-nums my-1">
-                      {totals.matches}
+                {/* DADOS DO JOGADOR + BLOCOS DE ESTATÍSTICAS LIMPOS (SOFASCORE + WSC) */}
+                <div className="flex-1 flex flex-col justify-between w-full space-y-5">
+                  {/* Cabeçalho do Perfil */}
+                  <div className="flex flex-wrap items-start justify-between gap-4 border-b border-white/10 pb-4">
+                    <div className="space-y-2">
+                      {/* Linha de Selos autênticos do WSC */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`px-2.5 py-0.5 rounded-xs text-xs font-extrabold ${posStyle.bg}`}>
+                          {posStyle.label}
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded bg-white/10 text-xs font-bold text-slate-200">
+                          {career.nationality || 'Brasil'}
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-white/10 text-xs font-bold text-[#FACC15]">
+                          <Star className="w-3.5 h-3.5 fill-[#DC2626] text-[#DC2626]" />
+                          Auge OVR: {totals.peak_overall}
+                        </span>
+                        {/* Seta de Evolução verde clássica do treino do WSC */}
+                        <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded bg-[#22C55E]/20 text-[#22C55E] text-xs font-extrabold">
+                          <ChevronsRight className="w-4 h-4 stroke-[3]" />
+                          Em Evolução
+                        </span>
+                      </div>
+
+                      <h1 className="font-display text-4xl sm:text-5xl font-extrabold uppercase tracking-tight text-white leading-none">
+                        {career.player_name}
+                      </h1>
+
+                      <div className="flex flex-wrap items-center gap-4 text-sm text-slate-300 font-medium">
+                        <span className="text-white font-bold">
+                          Clube: <span className="text-[#FACC15]">{currentSeason?.club_name}</span>
+                        </span>
+                        <span>•</span>
+                        <span>{currentSeason?.age} anos</span>
+                        <span>•</span>
+                        <span>Temporada #{currentSeason?.season_number}</span>
+                        <span>•</span>
+                        <span className="inline-flex items-center gap-1 text-xs text-slate-400">
+                          <Monitor className="w-3.5 h-3.5" />
+                          {career.target_window_title}
+                        </span>
+                      </div>
                     </div>
-                    <span className="text-[11px] text-slate-500 tabular-nums">
-                      {totals.seasons_count} {totals.seasons_count === 1 ? 'época' : 'épocas'}
-                    </span>
+
+                    {/* Nota Sofascore / Média de Participações em Destaque */}
+                    <div className="flex items-center gap-3 bg-[#0B0F0C] border border-white/10 rounded-xl p-3">
+                      <div className="text-right">
+                        <div className="text-xs font-bold text-slate-200">Média G+A / Jogo</div>
+                        <div className="text-[11px] text-slate-400">
+                          {totals.goal_contributions} participações diretas
+                        </div>
+                      </div>
+                      <div className="w-14 h-14 rounded-lg bg-[#22C55E] text-[#07170D] flex items-center justify-center font-display text-3xl font-extrabold tabular-nums shadow">
+                        {gaPerMatch}
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="p-4 flex flex-col justify-between">
-                    <span className="text-xs text-emerald-400 font-medium">Gols</span>
-                    <div className="font-display text-4xl font-extrabold text-emerald-400 tabular-nums my-1">
-                      {totals.goals}
+                  {/* 4 Blocos de Resumo Limpos estilo Sofascore / WSC */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+                    <div className="bg-[#0B0F0C] border border-white/10 rounded-xl p-4 flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-bold text-slate-400 uppercase">
+                          Partidas Jogadas
+                        </span>
+                        <div className="font-display text-4xl font-extrabold text-white tabular-nums mt-0.5">
+                          {totals.matches}
+                        </div>
+                        <span className="text-xs text-slate-400">
+                          Temporada atual: <strong className="text-white">{currentSeason?.matches ?? 0}</strong>
+                        </span>
+                      </div>
+                      <span className="text-2xl">👕</span>
                     </div>
-                    <span className="text-[11px] text-slate-400 tabular-nums">
-                      Atual: {currentSeason?.goals ?? 0}
-                    </span>
-                  </div>
 
-                  <div className="p-4 flex flex-col justify-between">
-                    <span className="text-xs text-cyan-400 font-medium">Assistências</span>
-                    <div className="font-display text-4xl font-extrabold text-cyan-400 tabular-nums my-1">
-                      {totals.assists}
+                    <div className="bg-[#0B0F0C] border border-white/10 rounded-xl p-4 flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-bold text-[#22C55E] uppercase">
+                          Gols na Carreira
+                        </span>
+                        <div className="font-display text-4xl font-extrabold text-[#22C55E] tabular-nums mt-0.5">
+                          {totals.goals}
+                        </div>
+                        <span className="text-xs text-slate-400">
+                          Temporada atual: <strong className="text-white">{currentSeason?.goals ?? 0}</strong>
+                        </span>
+                      </div>
+                      <span className="text-2xl">⚽</span>
                     </div>
-                    <span className="text-[11px] text-slate-400 tabular-nums">
-                      Atual: {currentSeason?.assists ?? 0}
-                    </span>
-                  </div>
 
-                  <div className="p-4 flex flex-col justify-between">
-                    <span className="text-xs text-slate-300">Média G+A</span>
-                    <div className="font-display text-4xl font-extrabold text-white tabular-nums my-1">
-                      {gaPerMatch}
+                    <div className="bg-[#0B0F0C] border border-white/10 rounded-xl p-4 flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-bold text-[#38BDF8] uppercase">
+                          Assistências
+                        </span>
+                        <div className="font-display text-4xl font-extrabold text-[#38BDF8] tabular-nums mt-0.5">
+                          {totals.assists}
+                        </div>
+                        <span className="text-xs text-slate-400">
+                          Temporada atual: <strong className="text-white">{currentSeason?.assists ?? 0}</strong>
+                        </span>
+                      </div>
+                      <span className="text-2xl">👟</span>
                     </div>
-                    <span className="text-[11px] text-slate-400 tabular-nums">
-                      {totals.goal_contributions} part.
-                    </span>
-                  </div>
 
-                  <div className="p-4 flex flex-col justify-between col-span-2 sm:col-span-1">
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="text-xs text-amber-400 font-medium">Troféus</span>
-                      <button
-                        onClick={() => handleQuickAddTrophy(1)}
-                        title="Somar 1 troféu na temporada atual"
-                        className="px-1.5 py-0.5 rounded bg-amber-400/15 hover:bg-amber-400/25 border border-amber-400/30 text-amber-300 font-mono text-[10px] font-semibold transition"
-                      >
-                        +1
-                      </button>
+                    <div className="bg-[#0B0F0C] border border-white/10 rounded-xl p-4 flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-[#FACC15] uppercase">
+                            Troféus
+                          </span>
+                          <button
+                            onClick={() => handleQuickAddTrophy(1)}
+                            className="px-2 py-0.5 rounded bg-[#FACC15] hover:bg-[#EAB308] text-[#1C1404] text-[10px] font-extrabold transition"
+                          >
+                            +1
+                          </button>
+                        </div>
+                        <div className="font-display text-4xl font-extrabold text-[#FACC15] tabular-nums mt-0.5">
+                          {totals.trophies_count}
+                        </div>
+                        <span className="text-xs text-slate-400">
+                          Temporada atual: <strong className="text-white">{currentSeason?.trophies_count ?? 0}</strong>
+                        </span>
+                      </div>
+                      <span className="text-2xl">🏆</span>
                     </div>
-                    <div className="font-display text-4xl font-extrabold text-amber-400 tabular-nums my-1">
-                      {totals.trophies_count}
-                    </div>
-                    <span className="text-[11px] text-slate-400 tabular-nums">
-                      Atual: {currentSeason?.trophies_count ?? 0}
-                    </span>
                   </div>
                 </div>
               </div>
             </section>
 
-            {/* 3. PAINEL DE TELEMETRIA + TABELA DE TEMPORADAS + LINHA DO TEMPO AO VIVO */}
+            {/* 3. ÁREA PRINCIPAL: TABELA ESTILO WSC + GRÁFICOS SOFASCORE + SÚMULA AO VIVO */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Coluna Esquerda (8 colunas): Telemetria Unificada e Histórico */}
+              {/* Coluna Principal (8 colunas) */}
               <div className="lg:col-span-8 space-y-6">
-                {/* Painel Duplo de Gráficos Separados por Linha Estrutural */}
-                <section className="bg-[#0D131F] border border-[#1E2D45] rounded-lg overflow-hidden">
-                  <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#1E2D45]">
-                    {/* Gráfico 1: Curva de Overall */}
-                    <div className="p-5">
-                      <div className="flex items-baseline justify-between mb-4">
-                        <div>
-                          <h2 className="font-display text-xl font-bold text-white tracking-wide">
-                            Progressão de Overall
-                          </h2>
-                          <p className="text-xs text-slate-400">
-                            Evolução da classificação geral por temporada e idade
-                          </p>
-                        </div>
-                        <span className="font-mono text-xs text-emerald-400 tabular-nums">
-                          OVR {currentSeason?.overall ?? '--'}
-                        </span>
-                      </div>
-
-                      <div className="h-56">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-                            <defs>
-                              <linearGradient id="ovrFill" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
-                                <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="2 4" stroke="#162032" vertical={false} />
-                            <XAxis
-                              dataKey="name"
-                              stroke="#64748b"
-                              fontSize={11}
-                              tickLine={false}
-                              axisLine={{ stroke: '#1E2D45' }}
-                            />
-                            <YAxis
-                              domain={['dataMin - 3', 'dataMax + 3']}
-                              stroke="#64748b"
-                              fontSize={11}
-                              tickLine={false}
-                              axisLine={false}
-                            />
-                            <Tooltip
-                              contentStyle={{
-                                backgroundColor: '#06090F',
-                                borderColor: '#1E2D45',
-                                borderRadius: '6px',
-                                fontSize: '12px',
-                                color: '#f8fafc',
-                              }}
-                            />
-                            <Area
-                              type="monotone"
-                              dataKey="Overall"
-                              stroke="#10b981"
-                              strokeWidth={2.5}
-                              fillOpacity={1}
-                              fill="url(#ovrFill)"
-                              dot={{ r: 3.5, fill: '#10b981', strokeWidth: 2, stroke: '#06090F' }}
-                              activeDot={{ r: 5, fill: '#fbbf24' }}
-                            />
-                          </AreaChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-
-                    {/* Gráfico 2: Produção Ofensiva */}
-                    <div className="p-5">
-                      <div className="flex items-baseline justify-between mb-4">
-                        <div>
-                          <h2 className="font-display text-xl font-bold text-white tracking-wide">
-                            Produção ofensiva por época
-                          </h2>
-                          <p className="text-xs text-slate-400">
-                            Comparativo entre gols marcados e assistências
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3 text-[11px]">
-                          <span className="flex items-center gap-1.5 text-emerald-400">
-                            <span className="w-2 h-2 rounded-xs bg-emerald-500"></span>
-                            Gols
-                          </span>
-                          <span className="flex items-center gap-1.5 text-cyan-400">
-                            <span className="w-2 h-2 rounded-xs bg-cyan-400"></span>
-                            Assist.
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="h-56">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={chartData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="2 4" stroke="#162032" vertical={false} />
-                            <XAxis
-                              dataKey="name"
-                              stroke="#64748b"
-                              fontSize={11}
-                              tickLine={false}
-                              axisLine={{ stroke: '#1E2D45' }}
-                            />
-                            <YAxis
-                              stroke="#64748b"
-                              fontSize={11}
-                              tickLine={false}
-                              axisLine={false}
-                            />
-                            <Tooltip
-                              contentStyle={{
-                                backgroundColor: '#06090F',
-                                borderColor: '#1E2D45',
-                                borderRadius: '6px',
-                                fontSize: '12px',
-                                color: '#f8fafc',
-                              }}
-                            />
-                            <Bar
-                              dataKey="Gols"
-                              fill="#10b981"
-                              radius={[3, 3, 0, 0]}
-                              maxBarSize={28}
-                            />
-                            <Bar
-                              dataKey="Assistências"
-                              fill="#22d3ee"
-                              radius={[3, 3, 0, 0]}
-                              maxBarSize={28}
-                            />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-                  </div>
-                </section>
-
-                {/* Registro de Temporadas (Season Ledger) */}
-                <section className="bg-[#0D131F] border border-[#1E2D45] rounded-lg overflow-hidden">
-                  <div className="px-5 py-4 border-b border-[#1E2D45] flex flex-wrap items-center justify-between gap-4">
+                {/* TABELA DE TEMPORADAS COM O VISUAL EXATO DAS TABELAS DO WSC */}
+                <section className="bg-[#121814]/90 backdrop-blur-xs border-2 border-white/15 rounded-xl p-5 shadow-2xl">
+                  <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
                     <div>
-                      <h2 className="font-display text-xl font-bold text-white tracking-wide">
-                        Histórico por temporada
+                      <h2 className="font-display text-2xl font-extrabold uppercase tracking-wide text-white">
+                        Histórico de Temporadas
                       </h2>
-                      <p className="text-xs text-slate-400">
-                        Desempenho detalhado por clube e ajustes manuais rápidos
+                      <p className="text-xs text-slate-300">
+                        Estatísticas acumuladas temporada a temporada no clube
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2.5">
                       <button
                         onClick={() => setIsEditingCurrent((prev) => !prev)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#162032] hover:bg-[#1E2D45] border border-[#1E2D45] text-xs font-semibold text-slate-200 transition"
+                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#252C52] hover:bg-[#313A6B] text-xs font-bold text-slate-100 transition"
                       >
-                        <Edit3 className="w-3.5 h-3.5 text-amber-400" />
-                        {isEditingCurrent ? 'Fechar edição' : 'Ajustar temporada atual'}
+                        <Edit3 className="w-3.5 h-3.5 text-[#FACC15]" />
+                        {isEditingCurrent ? 'Fechar Edição' : 'Editar Temporada Atual'}
                       </button>
 
                       <button
@@ -995,30 +906,30 @@ export default function App() {
                           });
                           setShowNewSeasonModal(true);
                         }}
-                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition"
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#22C55E] hover:bg-[#16A34A] text-[#07170D] text-xs font-extrabold uppercase tracking-wide transition"
                       >
-                        <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                        Iniciar nova temporada
+                        <Plus className="w-4 h-4 stroke-[2.5]" />
+                        Nova Temporada
                       </button>
                     </div>
                   </div>
 
-                  {/* Gaveta de Edição Rápida Inline */}
+                  {/* Edição Manual Rápida */}
                   {isEditingCurrent && currentSeason && (
-                    <div className="p-4 bg-[#06090F] border-b border-[#1E2D45] space-y-3">
+                    <div className="mb-4 p-4 rounded-lg bg-[#12162E] border-2 border-[#FACC15]/50 space-y-3">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-amber-400">
-                          Ajustando Temporada #{currentSeason.season_number}
+                        <span className="font-bold text-[#FACC15] uppercase">
+                          Editando Temporada #{currentSeason.season_number}
                         </span>
-                        <span className="text-slate-400">
-                          Mudar o nome do clube registra automaticamente uma transferência
+                        <span className="text-slate-300">
+                          Se mudar o nome do clube, uma transferência será registrada no histórico
                         </span>
                       </div>
 
                       <div className="grid grid-cols-2 sm:grid-cols-7 gap-2.5">
                         <div className="col-span-2">
-                          <label className="block text-[11px] text-slate-400 mb-1">
-                            Clube atual
+                          <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                            Clube
                           </label>
                           <input
                             type="text"
@@ -1026,12 +937,14 @@ export default function App() {
                             onChange={(e) =>
                               setEditSeasonForm({ ...editSeasonForm, club_name: e.target.value })
                             }
-                            className="w-full bg-[#0D131F] border border-[#1E2D45] rounded px-2.5 py-1.5 text-xs font-semibold text-white focus:border-emerald-500 focus:outline-none"
+                            className="w-full bg-[#181D38] border border-[#353E70] rounded px-2.5 py-1.5 text-xs font-bold text-white"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-[11px] text-slate-400 mb-1">Idade</label>
+                          <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                            Idade
+                          </label>
                           <input
                             type="number"
                             min={15}
@@ -1040,12 +953,14 @@ export default function App() {
                             onChange={(e) =>
                               setEditSeasonForm({ ...editSeasonForm, age: e.target.value })
                             }
-                            className="w-full bg-[#0D131F] border border-[#1E2D45] rounded px-2.5 py-1.5 text-xs font-semibold text-white tabular-nums"
+                            className="w-full bg-[#181D38] border border-[#353E70] rounded px-2.5 py-1.5 text-xs font-bold text-white tabular-nums"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-[11px] text-slate-400 mb-1">Overall</label>
+                          <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                            Pontuação
+                          </label>
                           <input
                             type="number"
                             min={30}
@@ -1054,12 +969,14 @@ export default function App() {
                             onChange={(e) =>
                               setEditSeasonForm({ ...editSeasonForm, overall: e.target.value })
                             }
-                            className="w-full bg-[#0D131F] border border-[#1E2D45] rounded px-2.5 py-1.5 text-xs font-semibold text-amber-400 tabular-nums"
+                            className="w-full bg-[#181D38] border border-[#353E70] rounded px-2.5 py-1.5 text-xs font-bold text-[#FACC15] tabular-nums"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-[11px] text-slate-400 mb-1">Jogos</label>
+                          <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                            Jogos
+                          </label>
                           <input
                             type="number"
                             min={0}
@@ -1067,12 +984,14 @@ export default function App() {
                             onChange={(e) =>
                               setEditSeasonForm({ ...editSeasonForm, matches: e.target.value })
                             }
-                            className="w-full bg-[#0D131F] border border-[#1E2D45] rounded px-2.5 py-1.5 text-xs font-semibold text-white tabular-nums"
+                            className="w-full bg-[#181D38] border border-[#353E70] rounded px-2.5 py-1.5 text-xs font-bold text-white tabular-nums"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-[11px] text-slate-400 mb-1">Gols</label>
+                          <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                            Gols
+                          </label>
                           <input
                             type="number"
                             min={0}
@@ -1080,29 +999,27 @@ export default function App() {
                             onChange={(e) =>
                               setEditSeasonForm({ ...editSeasonForm, goals: e.target.value })
                             }
-                            className="w-full bg-[#0D131F] border border-[#1E2D45] rounded px-2.5 py-1.5 text-xs font-semibold text-emerald-400 tabular-nums"
+                            className="w-full bg-[#181D38] border border-[#353E70] rounded px-2.5 py-1.5 text-xs font-bold text-[#22C55E] tabular-nums"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-[11px] text-slate-400 mb-1">
-                            Assist. / Títulos
+                          <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                            Assist / Troféus
                           </label>
-                          <div className="flex gap-1.5">
+                          <div className="flex gap-1">
                             <input
                               type="number"
                               min={0}
-                              title="Assistências"
                               value={editSeasonForm.assists}
                               onChange={(e) =>
                                 setEditSeasonForm({ ...editSeasonForm, assists: e.target.value })
                               }
-                              className="w-1/2 bg-[#0D131F] border border-[#1E2D45] rounded px-2 py-1.5 text-xs font-semibold text-cyan-400 tabular-nums"
+                              className="w-1/2 bg-[#181D38] border border-[#353E70] rounded px-2 py-1.5 text-xs font-bold text-[#38BDF8] tabular-nums"
                             />
                             <input
                               type="number"
                               min={0}
-                              title="Troféus"
                               value={editSeasonForm.trophies_count}
                               onChange={(e) =>
                                 setEditSeasonForm({
@@ -1110,7 +1027,7 @@ export default function App() {
                                   trophies_count: e.target.value,
                                 })
                               }
-                              className="w-1/2 bg-[#0D131F] border border-[#1E2D45] rounded px-2 py-1.5 text-xs font-semibold text-amber-400 tabular-nums"
+                              className="w-1/2 bg-[#181D38] border border-[#353E70] rounded px-2 py-1.5 text-xs font-bold text-[#FACC15] tabular-nums"
                             />
                           </div>
                         </div>
@@ -1119,155 +1036,272 @@ export default function App() {
                       <div className="flex justify-end gap-2 pt-1">
                         <button
                           onClick={() => setIsEditingCurrent(false)}
-                          className="px-3 py-1.5 rounded bg-[#162032] text-xs text-slate-300"
+                          className="px-3 py-1.5 rounded bg-[#252C52] text-xs font-bold text-slate-200"
                         >
                           Cancelar
                         </button>
                         <button
                           onClick={handleSaveCurrentSeason}
-                          className="flex items-center gap-1.5 px-4 py-1.5 rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold"
+                          className="flex items-center gap-1.5 px-4 py-1.5 rounded bg-[#22C55E] text-[#07170D] text-xs font-extrabold"
                         >
                           <Check className="w-3.5 h-3.5" />
-                          Salvar alterações
+                          Salvar Alterações
                         </button>
                       </div>
                     </div>
                   )}
 
-                  {/* Tabela de Temporadas */}
+                  {/* Cabeçalho Cinza-Chumbo Recortado igual ao do WSC */}
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="border-b border-[#1E2D45] bg-[#090E17] text-xs font-semibold text-slate-400">
-                          <th className="py-2.5 px-4">Época</th>
-                          <th className="py-2.5 px-4">Clube</th>
-                          <th className="py-2.5 px-3 text-right">Idade</th>
-                          <th className="py-2.5 px-3 text-right">Overall</th>
-                          <th className="py-2.5 px-3 text-right">Jogos</th>
-                          <th className="py-2.5 px-3 text-right text-emerald-400">Gols</th>
-                          <th className="py-2.5 px-3 text-right text-cyan-400">Assist.</th>
-                          <th className="py-2.5 px-3 text-right">G+A</th>
-                          <th className="py-2.5 px-4 text-right text-amber-400">Troféus</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#1E2D45]/60 text-sm tabular-nums">
-                        {seasons.map((s) => {
-                          const isCurrent = s.id === currentSeason?.id;
-                          return (
-                            <tr
-                              key={s.id}
-                              className={`transition ${
-                                isCurrent ? 'bg-emerald-500/[0.06]' : 'hover:bg-[#162032]/50'
-                              }`}
-                            >
-                              <td className="py-3 px-4 font-mono text-xs">
-                                <span
-                                  className={
-                                    isCurrent ? 'text-emerald-400 font-semibold' : 'text-slate-400'
-                                  }
-                                >
-                                  #{s.season_number}
-                                  {isCurrent && ' • atual'}
+                    <div className="min-w-[680px] space-y-1.5">
+                      <div className="wsc-slant-header bg-[#353844] text-white px-5 py-2.5 grid grid-cols-12 items-center text-xs font-extrabold uppercase tracking-wider">
+                        <div className="col-span-2">Época</div>
+                        <div className="col-span-3">Clube</div>
+                        <div className="col-span-1 text-center">IDA.</div>
+                        <div className="col-span-2 text-center">PONTUAÇÃO</div>
+                        <div className="col-span-1 text-center" title="Jogos">👕</div>
+                        <div className="col-span-1 text-center" title="Gols">⚽</div>
+                        <div className="col-span-1 text-center" title="Assistências">👟</div>
+                        <div className="col-span-1 text-center" title="Troféus">🏆</div>
+                      </div>
+
+                      {/* Linhas da Tabela */}
+                      {seasons.map((s) => {
+                        const isCurrent = s.id === currentSeason?.id;
+                        return (
+                          <div
+                            key={s.id}
+                            className={`wsc-slant-row px-5 py-2.5 grid grid-cols-12 items-center text-sm font-bold tabular-nums transition ${
+                              isCurrent
+                                ? 'bg-[#BFC5D4] text-[#111526]'
+                                : 'bg-[#9CA3B5] text-[#111526] opacity-90 hover:opacity-100'
+                            }`}
+                          >
+                            <div className="col-span-2 flex items-center gap-1.5">
+                              <span className="px-2 py-0.5 rounded-xs bg-[#181D38] text-white text-xs font-extrabold">
+                                T{s.season_number}
+                              </span>
+                              {isCurrent && (
+                                <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded-xs bg-[#16A34A] text-white">
+                                  Atual
                                 </span>
-                              </td>
-                              <td className="py-3 px-4 font-semibold text-white">{s.club_name}</td>
-                              <td className="py-3 px-3 text-right text-slate-300">{s.age}</td>
-                              <td className="py-3 px-3 text-right">
-                                <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-amber-400/10 border border-amber-400/30 text-amber-300">
-                                  {s.overall}
-                                </span>
-                              </td>
-                              <td className="py-3 px-3 text-right text-slate-200">{s.matches}</td>
-                              <td className="py-3 px-3 text-right font-bold text-emerald-400">
-                                {s.goals}
-                              </td>
-                              <td className="py-3 px-3 text-right font-bold text-cyan-400">
-                                {s.assists}
-                              </td>
-                              <td className="py-3 px-3 text-right font-semibold text-white">
-                                {s.goals + s.assists}
-                              </td>
-                              <td className="py-3 px-4 text-right font-semibold text-amber-400">
-                                {s.trophies_count > 0 ? `${s.trophies_count} 🏆` : '—'}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                              )}
+                            </div>
+                            <div className="col-span-3 font-extrabold text-[#111526] truncate">
+                              {s.club_name}
+                            </div>
+                            <div className="col-span-1 text-center font-semibold">{s.age}</div>
+                            <div className="col-span-2 flex items-center justify-center gap-1.5">
+                              <Star className="w-3.5 h-3.5 fill-[#991B1B] text-[#991B1B]" />
+                              <span className="font-extrabold">{s.overall}</span>
+                            </div>
+                            <div className="col-span-1 text-center">{s.matches}</div>
+                            <div className="col-span-1 text-center font-extrabold text-[#0F5132]">
+                              {s.goals}
+                            </div>
+                            <div className="col-span-1 text-center font-extrabold text-[#1E3A8A]">
+                              {s.assists}
+                            </div>
+                            <div className="col-span-1 text-center font-extrabold">
+                              {s.trophies_count > 0 ? `${s.trophies_count}` : '0'}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </section>
+
+                {/* GRÁFICOS ESTILO SOFASCORE */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Gráfico 1: Evolução de Pontuação (OVR) */}
+                  <section className="bg-[#121814]/90 backdrop-blur-xs border-2 border-white/15 rounded-xl p-5 shadow-2xl">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h3 className="font-display text-xl font-extrabold uppercase tracking-wide text-white">
+                          Evolução de Pontuação
+                        </h3>
+                        <p className="text-xs text-slate-300">
+                          Crescimento do Overall a cada temporada
+                        </p>
+                      </div>
+                      <span className="px-2.5 py-1 rounded bg-white/10 text-xs font-extrabold text-[#FACC15]">
+                        ★ {currentSeason?.overall ?? 58}
+                      </span>
+                    </div>
+
+                    <div className="h-56">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="wscOvr" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#FACC15" stopOpacity={0.4} />
+                              <stop offset="95%" stopColor="#FACC15" stopOpacity={0.0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#223026" vertical={false} />
+                          <XAxis
+                            dataKey="name"
+                            stroke="#94A3B8"
+                            fontSize={11}
+                            tickLine={false}
+                            axisLine={{ stroke: '#223026' }}
+                          />
+                          <YAxis
+                            domain={['dataMin - 3', 'dataMax + 3']}
+                            stroke="#94A3B8"
+                            fontSize={11}
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: '#0B0F0C',
+                              borderColor: '#2E4033',
+                              borderRadius: '8px',
+                              fontSize: '12px',
+                              color: '#FFFFFF',
+                            }}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="Pontuação"
+                            stroke="#FACC15"
+                            strokeWidth={3}
+                            fillOpacity={1}
+                            fill="url(#wscOvr)"
+                            dot={{ r: 4, fill: '#FACC15', strokeWidth: 2, stroke: '#0B0F0C' }}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </section>
+
+                  {/* Gráfico 2: Gols e Assistências */}
+                  <section className="bg-[#121814]/90 backdrop-blur-xs border-2 border-white/15 rounded-xl p-5 shadow-2xl">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h3 className="font-display text-xl font-extrabold uppercase tracking-wide text-white">
+                          Gols e Assistências
+                        </h3>
+                        <p className="text-xs text-slate-300">
+                          Produção ofensiva por temporada
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs font-bold">
+                        <span className="flex items-center gap-1.5 text-[#22C55E]">
+                          <span className="w-2.5 h-2.5 rounded-xs bg-[#22C55E]"></span>
+                          Gols
+                        </span>
+                        <span className="flex items-center gap-1.5 text-[#38BDF8]">
+                          <span className="w-2.5 h-2.5 rounded-xs bg-[#38BDF8]"></span>
+                          Assist.
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="h-56">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={chartData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#223026" vertical={false} />
+                          <XAxis
+                            dataKey="name"
+                            stroke="#94A3B8"
+                            fontSize={11}
+                            tickLine={false}
+                            axisLine={{ stroke: '#223026' }}
+                          />
+                          <YAxis
+                            stroke="#94A3B8"
+                            fontSize={11}
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: '#0B0F0C',
+                              borderColor: '#2E4033',
+                              borderRadius: '8px',
+                              fontSize: '12px',
+                              color: '#FFFFFF',
+                            }}
+                          />
+                          <Bar dataKey="Gols" fill="#22C55E" radius={[4, 4, 0, 0]} maxBarSize={30} />
+                          <Bar
+                            dataKey="Assistências"
+                            fill="#38BDF8"
+                            radius={[4, 4, 0, 0]}
+                            maxBarSize={30}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </section>
+                </div>
               </div>
 
-              {/* Coluna Direita (4 colunas): Linha do Tempo Contínua de Evolução */}
+              {/* Coluna Direita (4 colunas): Súmula de Lances da Carreira */}
               <div className="lg:col-span-4">
-                <section className="bg-[#0D131F] border border-[#1E2D45] rounded-lg h-full flex flex-col">
-                  <div className="px-5 py-4 border-b border-[#1E2D45] flex items-baseline justify-between">
+                <section className="bg-[#121814]/90 backdrop-blur-xs border-2 border-white/15 rounded-xl p-5 shadow-2xl h-full flex flex-col">
+                  <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/10">
                     <div>
-                      <h2 className="font-display text-xl font-bold text-white tracking-wide">
-                        Linha do tempo ao vivo
+                      <h2 className="font-display text-2xl font-extrabold uppercase tracking-wide text-white">
+                        Súmula da Carreira
                       </h2>
-                      <p className="text-xs text-slate-400">
-                        Eventos capturados automaticamente na temporada
+                      <p className="text-xs text-slate-300">
+                        Atualizações registradas automaticamente após as partidas
                       </p>
                     </div>
-                    <span className="font-mono text-xs text-slate-400 tabular-nums">
-                      {recentEvents.length} reg.
+                    <span className="px-2.5 py-1 rounded bg-white/10 text-xs font-bold text-slate-200 tabular-nums">
+                      {recentEvents.length}
                     </span>
                   </div>
 
                   {recentEvents.length === 0 ? (
-                    <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-                      <Eye className="w-8 h-8 text-slate-600 mb-3" />
-                      <p className="text-sm font-semibold text-slate-300">
-                        Nenhum evento registrado ainda
+                    <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-[#0B0F0C] rounded-xl border border-white/10">
+                      <span className="text-3xl mb-2">⚽</span>
+                      <p className="text-sm font-bold text-white">
+                        Aguardando fim da próxima partida
                       </p>
-                      <p className="text-xs text-slate-500 mt-1 max-w-xs leading-relaxed">
-                        Mantenha o Olho Biônico ativo enquanto joga. Ao abrir a tabela de
-                        estatísticas pós-jogo ou a tela de treinamento, os gols, assistências e
-                        subidas de Overall aparecerão aqui.
+                      <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                        Deixe o monitoramento ativo. Quando aparecer a tabela de notas do jogo,
+                        os gols e assistências serão registrados aqui automaticamente.
                       </p>
                     </div>
                   ) : (
-                    <div className="p-5 overflow-y-auto max-h-[680px]">
-                      <div className="relative pl-5 border-l border-[#1E2D45] space-y-5">
-                        {recentEvents.map((ev) => {
-                          const meta = getEventMeta(ev);
-                          const timeStr = ev.timestamp
-                            ? new Date(ev.timestamp).toLocaleTimeString('pt-BR', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                second: '2-digit',
-                              })
-                            : '';
-                          return (
-                            <div key={ev.id} className="relative group">
-                              {/* Marcador na espinha da linha do tempo */}
-                              <span
-                                className={`absolute -left-[25px] top-1 w-2.5 h-2.5 rounded-full ring-4 ${meta.dotColor}`}
-                              ></span>
-
-                              <div className="flex items-baseline justify-between gap-2">
-                                <span className={`text-xs font-bold ${meta.textColor}`}>
+                    <div className="space-y-2.5 overflow-y-auto max-h-[650px] pr-1">
+                      {recentEvents.map((ev) => {
+                        const meta = getEventMeta(ev);
+                        const timeStr = ev.timestamp
+                          ? new Date(ev.timestamp).toLocaleTimeString('pt-BR', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : '';
+                        return (
+                          <div
+                            key={ev.id}
+                            className={`p-3.5 rounded-lg bg-[#0B0F0C] border border-white/10 border-l-4 ${meta.borderLeft} flex items-center justify-between gap-3`}
+                          >
+                            <div className="space-y-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`px-2 py-0.5 rounded-xs text-[10px] font-extrabold uppercase ${meta.accent}`}
+                                >
+                                  {meta.badge}
+                                </span>
+                                <span className="text-xs font-bold text-white truncate">
                                   {meta.title}
                                 </span>
-                                <span className="font-mono text-[11px] text-slate-500 tabular-nums">
-                                  {timeStr}
-                                </span>
                               </div>
-
-                              <div className="mt-1 flex items-center justify-between gap-2">
-                                <p className="text-xs text-slate-300">{meta.detail}</p>
-                                <span
-                                  className={`font-mono text-[10px] font-semibold px-2 py-0.5 rounded border shrink-0 tabular-nums ${meta.pillClass}`}
-                                >
-                                  {meta.delta}
-                                </span>
-                              </div>
+                              <p className="text-xs text-slate-300 font-medium">{meta.detail}</p>
                             </div>
-                          );
-                        })}
-                      </div>
+                            <span className="text-[11px] font-bold text-slate-400 tabular-nums shrink-0">
+                              {timeStr}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </section>
@@ -1277,22 +1311,22 @@ export default function App() {
         )}
       </main>
 
-      {/* MODAL: NOVA CARREIRA */}
+      {/* MODAL: NOVO JOGADOR */}
       {showNewCareerModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[#0D131F] border border-[#1E2D45] rounded-lg max-w-lg w-full p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-5">
+        <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
+          <div className="bg-[#181D38] border-2 border-[#353E70] rounded-xl max-w-lg w-full p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#272F59]">
               <div>
-                <h3 className="font-display text-2xl font-bold text-white">
-                  Cadastrar nova carreira
+                <h3 className="font-display text-2xl font-extrabold uppercase text-white">
+                  Novo Jogador no WSC
                 </h3>
-                <p className="text-xs text-slate-400">
-                  Informe os dados iniciais do jogador e vincule a janela do emulador
+                <p className="text-xs text-slate-300">
+                  Preencha os dados como aparecem na escalação do jogo
                 </p>
               </div>
               <button
                 onClick={() => setShowNewCareerModal(false)}
-                className="p-1.5 rounded hover:bg-[#162032] text-slate-400"
+                className="p-1.5 rounded hover:bg-[#252C52] text-slate-300"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1300,8 +1334,8 @@ export default function App() {
 
             <form onSubmit={handleCreateCareer} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Nome do jogador (como exibido na escalação do WSC)
+                <label className="block text-xs font-bold text-slate-200 mb-1">
+                  Nome do Jogador (exatamente como está no jogo)
                 </label>
                 <input
                   type="text"
@@ -1311,32 +1345,32 @@ export default function App() {
                   onChange={(e) =>
                     setNewCareerForm({ ...newCareerForm, player_name: e.target.value })
                   }
-                  className="w-full bg-[#06090F] border border-[#1E2D45] rounded-md px-3.5 py-2 text-sm font-semibold text-white focus:border-emerald-500 focus:outline-none"
+                  className="w-full bg-[#10142C] border border-[#353E70] rounded-lg px-3.5 py-2.5 text-sm font-bold text-white focus:border-[#FACC15] focus:outline-none"
                 />
               </div>
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Posição</label>
+                  <label className="block text-xs font-bold text-slate-200 mb-1">Posição</label>
                   <select
                     value={newCareerForm.position}
                     onChange={(e) =>
                       setNewCareerForm({ ...newCareerForm, position: e.target.value })
                     }
-                    className="w-full bg-[#06090F] border border-[#1E2D45] rounded-md px-3 py-2 text-sm font-semibold text-white focus:border-emerald-500 focus:outline-none"
+                    className="w-full bg-[#10142C] border border-[#353E70] rounded-lg px-3 py-2.5 text-sm font-bold text-white"
                   >
-                    <option value="ATA">ATA (Atacante)</option>
-                    <option value="PON">PON (Ponta)</option>
-                    <option value="MEI">MEI (Meia)</option>
-                    <option value="VOL">VOL (Volante)</option>
-                    <option value="LAT">LAT (Lateral)</option>
-                    <option value="ZAG">ZAG (Zagueiro)</option>
-                    <option value="GOL">GOL (Goleiro)</option>
+                    <option value="AT">AT (Atacante)</option>
+                    <option value="PE">PE (Ponta)</option>
+                    <option value="PD">PD (Meia Dir.)</option>
+                    <option value="MO">MO (Meia Ofensivo)</option>
+                    <option value="VL">VL (Volante)</option>
+                    <option value="ZG">ZG (Zagueiro)</option>
+                    <option value="GL">GL (Goleiro)</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">
+                  <label className="block text-xs font-bold text-slate-200 mb-1">
                     Nacionalidade
                   </label>
                   <input
@@ -1345,13 +1379,13 @@ export default function App() {
                     onChange={(e) =>
                       setNewCareerForm({ ...newCareerForm, nationality: e.target.value })
                     }
-                    className="w-full bg-[#06090F] border border-[#1E2D45] rounded-md px-3 py-2 text-sm font-semibold text-white focus:border-emerald-500 focus:outline-none"
+                    className="w-full bg-[#10142C] border border-[#353E70] rounded-lg px-3 py-2.5 text-sm font-bold text-white"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">
-                    Clube inicial
+                  <label className="block text-xs font-bold text-slate-200 mb-1">
+                    Clube Atual
                   </label>
                   <input
                     type="text"
@@ -1360,15 +1394,15 @@ export default function App() {
                     onChange={(e) =>
                       setNewCareerForm({ ...newCareerForm, club_name: e.target.value })
                     }
-                    className="w-full bg-[#06090F] border border-[#1E2D45] rounded-md px-3 py-2 text-sm font-semibold text-white focus:border-emerald-500 focus:outline-none"
+                    className="w-full bg-[#10142C] border border-[#353E70] rounded-lg px-3 py-2.5 text-sm font-bold text-white"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">
-                    Idade inicial (15 a 45)
+                  <label className="block text-xs font-bold text-slate-200 mb-1">
+                    Idade (IDA.)
                   </label>
                   <input
                     type="number"
@@ -1376,13 +1410,13 @@ export default function App() {
                     max={45}
                     value={newCareerForm.age}
                     onChange={(e) => setNewCareerForm({ ...newCareerForm, age: e.target.value })}
-                    className="w-full bg-[#06090F] border border-[#1E2D45] rounded-md px-3 py-2 text-sm font-semibold text-white tabular-nums"
+                    className="w-full bg-[#10142C] border border-[#353E70] rounded-lg px-3 py-2.5 text-sm font-bold text-white tabular-nums"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">
-                    Overall inicial (30 a 99)
+                  <label className="block text-xs font-bold text-slate-200 mb-1">
+                    Pontuação (OVR)
                   </label>
                   <input
                     type="number"
@@ -1392,23 +1426,23 @@ export default function App() {
                     onChange={(e) =>
                       setNewCareerForm({ ...newCareerForm, overall: e.target.value })
                     }
-                    className="w-full bg-[#06090F] border border-[#1E2D45] rounded-md px-3 py-2 text-sm font-semibold text-amber-400 tabular-nums"
+                    className="w-full bg-[#10142C] border border-[#353E70] rounded-lg px-3 py-2.5 text-sm font-bold text-[#FACC15] tabular-nums"
                   />
                 </div>
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-medium text-slate-300">
-                    Janela do emulador
+                  <label className="block text-xs font-bold text-slate-200">
+                    Janela do Emulador
                   </label>
                   <button
                     type="button"
                     onClick={fetchWindows}
-                    className="text-xs font-semibold text-emerald-400 hover:underline flex items-center gap-1"
+                    className="text-xs font-bold text-[#FACC15] hover:underline flex items-center gap-1"
                   >
                     <RefreshCw className={`w-3 h-3 ${loadingWindows ? 'animate-spin' : ''}`} />
-                    Atualizar lista
+                    Atualizar Janelas
                   </button>
                 </div>
 
@@ -1421,7 +1455,7 @@ export default function App() {
                         target_window_title: e.target.value,
                       })
                     }
-                    className="w-full bg-[#06090F] border border-[#1E2D45] rounded-md px-3 py-2 text-sm font-semibold text-white focus:border-emerald-500 focus:outline-none"
+                    className="w-full bg-[#10142C] border border-[#353E70] rounded-lg px-3 py-2.5 text-sm font-bold text-white"
                   >
                     {openWindows.map((w) => (
                       <option key={w} value={w}>
@@ -1432,7 +1466,7 @@ export default function App() {
                 ) : (
                   <input
                     type="text"
-                    placeholder="Ex: Android Device ou MuMu Player"
+                    placeholder="Ex: Android Device"
                     value={newCareerForm.target_window_title}
                     onChange={(e) =>
                       setNewCareerForm({
@@ -1440,7 +1474,7 @@ export default function App() {
                         target_window_title: e.target.value,
                       })
                     }
-                    className="w-full bg-[#06090F] border border-[#1E2D45] rounded-md px-3 py-2 text-sm font-semibold text-white"
+                    className="w-full bg-[#10142C] border border-[#353E70] rounded-lg px-3 py-2.5 text-sm font-bold text-white"
                   />
                 )}
               </div>
@@ -1449,15 +1483,15 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setShowNewCareerModal(false)}
-                  className="px-4 py-2 rounded-md bg-[#162032] text-xs font-semibold text-slate-300"
+                  className="px-4 py-2 rounded-lg bg-[#252C52] text-xs font-bold text-slate-200"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-md bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold"
+                  className="px-5 py-2 rounded-lg bg-[#22C55E] hover:bg-[#16A34A] text-[#07170D] text-xs font-extrabold uppercase"
                 >
-                  Salvar e iniciar carreira
+                  Criar Jogador
                 </button>
               </div>
             </form>
@@ -1467,20 +1501,20 @@ export default function App() {
 
       {/* MODAL: NOVA TEMPORADA */}
       {showNewSeasonModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[#0D131F] border border-[#1E2D45] rounded-lg max-w-md w-full p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
+        <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
+          <div className="bg-[#181D38] border-2 border-[#353E70] rounded-xl max-w-md w-full p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#272F59]">
               <div>
-                <h3 className="font-display text-2xl font-bold text-white">
-                  Iniciar temporada #{(currentSeason?.season_number || 1) + 1}
+                <h3 className="font-display text-2xl font-extrabold uppercase text-white">
+                  Iniciar Temporada #{(currentSeason?.season_number || 1) + 1}
                 </h3>
-                <p className="text-xs text-slate-400">
-                  Encerra a temporada #{currentSeason?.season_number} e zera os contadores da nova época
+                <p className="text-xs text-slate-300">
+                  Fecha a temporada atual e zera os jogos, gols e assistências da nova época
                 </p>
               </div>
               <button
                 onClick={() => setShowNewSeasonModal(false)}
-                className="p-1.5 rounded hover:bg-[#162032] text-slate-400"
+                className="p-1.5 rounded hover:bg-[#252C52] text-slate-300"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1488,8 +1522,8 @@ export default function App() {
 
             <form onSubmit={handleStartNewSeason} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Clube da nova temporada (altere caso tenha se transferido)
+                <label className="block text-xs font-bold text-slate-200 mb-1">
+                  Clube da Nova Temporada
                 </label>
                 <input
                   type="text"
@@ -1497,7 +1531,7 @@ export default function App() {
                   onChange={(e) =>
                     setNewSeasonForm({ ...newSeasonForm, club_name: e.target.value })
                   }
-                  className="w-full bg-[#06090F] border border-[#1E2D45] rounded-md px-3.5 py-2 text-sm font-semibold text-white"
+                  className="w-full bg-[#10142C] border border-[#353E70] rounded-lg px-3.5 py-2.5 text-sm font-bold text-white"
                 />
               </div>
 
@@ -1508,10 +1542,10 @@ export default function App() {
                   onChange={(e) =>
                     setNewSeasonForm({ ...newSeasonForm, increment_age: e.target.checked })
                   }
-                  className="w-4 h-4 accent-emerald-500 rounded"
+                  className="w-4 h-4 accent-[#22C55E] rounded"
                 />
-                <span className="text-xs text-slate-200">
-                  Avançar 1 ano na idade do jogador automaticamente
+                <span className="text-xs font-bold text-slate-200">
+                  Somar +1 ano na idade do jogador
                 </span>
               </label>
 
@@ -1519,15 +1553,15 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setShowNewSeasonModal(false)}
-                  className="px-4 py-2 rounded-md bg-[#162032] text-xs font-semibold text-slate-300"
+                  className="px-4 py-2 rounded-lg bg-[#252C52] text-xs font-bold text-slate-200"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-md bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold"
+                  className="px-5 py-2 rounded-lg bg-[#22C55E] hover:bg-[#16A34A] text-[#07170D] text-xs font-extrabold uppercase"
                 >
-                  Confirmar nova temporada
+                  Confirmar
                 </button>
               </div>
             </form>
