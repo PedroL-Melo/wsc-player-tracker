@@ -1,10 +1,21 @@
-"""Motor de Visão Computacional Autônomo com Validação Rigorosa de Telas Oficiais do WSC."""
+"""Motor de Visão Computacional Autônomo com Reconhecimento Completo de Telas do WSC."""
 import re
+import unicodedata
 from typing import Dict, Any, List, Optional
 import numpy as np
 import cv2
 import torch
 import easyocr
+
+VALID_POSITIONS = {"GL", "ZG", "LD", "LE", "PD", "VL", "MO", "PE", "AT", "GOL", "ZAG", "LAT", "VOL", "MEI", "ATA", "PON"}
+
+
+def normalize_text(text: str) -> str:
+    """Remove acentos e converte para minúsculas para comparação tolerante a falhas de OCR."""
+    if not text:
+        return ""
+    nfkd = unicodedata.normalize("NFKD", text)
+    return "".join(c for c in nfkd if not unicodedata.combining(c)).lower().strip()
 
 
 class OCRScanner:
@@ -78,10 +89,10 @@ class OCRScanner:
         self, frame: np.ndarray, target_player_name: str
     ) -> Optional[Dict[str, Any]]:
         """
-        Só lê dados se a tela for comprovadamente uma tabela oficial:
-        - Tabela de Estatísticas Pós-Jogo (precisa ter 'JOGADOR' e 'VOLTAR')
-        - Tabela de Treinamento / Elenco (precisa ter 'TREINAMENTO' ou 'POTENCIAL' ou 'TRANSFER')
-        Em jogo, intervalo ou animações, DESCARTA o frame para evitar falsos positivos!
+        Só lê dados se a tela for comprovadamente uma tabela oficial do WSC:
+        - Tabela de Treinamento / Elenco / Transferências (extrai Overall, Idade, Posição e Clube)
+        - Tabela de Estatísticas Pós-Jogo (extrai Jogos, Gols, Assistências, Posição e Clube)
+        Em partida rolando ou intervalo, DESCARTA o frame!
         """
         if frame is None or not target_player_name.strip():
             return None
@@ -90,30 +101,48 @@ class OCRScanner:
         if not results:
             return None
 
-        all_screen_texts = [text.strip().lower() for _, text, _ in results if text.strip()]
-        full_screen_str = " ".join(all_screen_texts)
+        H, W, _ = frame.shape
+        all_screen_texts = [text.strip() for _, text, _ in results if text.strip()]
+        full_screen_norm = normalize_text(" ".join(all_screen_texts))
 
-        # 1. TRAVA ANTI-JOGO: Se for partida rolando, intervalo ou posse de bola, ignora na hora!
-        is_in_match = any(k in full_screen_str for k in [
-            "posse de bola", "intervalo", "fase de grupos", "vel ", "pas ", "chu ", "des "
-        ])
-        if is_in_match:
+        # 1. TRAVA ANTI-JOGO: Se for partida rolando ou intervalo (ex: "VEL 60 PAS 59" ou "Posse de Bola")
+        if any(k in full_screen_norm for k in ["posse de bola", "intervalo", "fase de grupos"]):
+            return None
+        if re.search(r"\b(vel|pas|chu|des)\s+\d+", full_screen_norm):
             return None
 
         # 2. IDENTIFICAÇÃO DE TELAS VÁLIDAS
-        is_training_screen = any(k in full_screen_str for k in ["treinamento", "potencial", "melhorar"])
-        is_transfer_screen = any(k in full_screen_str for k in ["transferencias", "transferências", "venda rápida", "ofertas"])
-        
-        # A tela de estatísticas da partida precisa obrigatoriamente ter a palavra "JOGADOR" e "VOLTAR"
-        is_stats_table = "jogador" in full_screen_str and any(k in full_screen_str for k in ["voltar", "ortri"])
+        is_squad_or_training = any(
+            k in full_screen_norm
+            for k in [
+                "treinamento",
+                "potencial",
+                "melhorar",
+                "pontuacao",
+                "pontua",
+                "ida.",
+                "transferencia",
+                "venda rapida",
+                "ofertas",
+                "titulares",
+                "reservas",
+            ]
+        )
 
-        # Se não for nenhuma tela de tabela reconhecida, não lê nada
-        if not (is_training_screen or is_transfer_screen or is_stats_table):
+        # A tela de estatísticas da partida tem "JOGADOR" e "VOLTAR", mas NÃO tem "PONTUAÇÃO" nem "TREINAMENTO"
+        is_stats_table = (
+            not is_squad_or_training
+            and "jogador" in full_screen_norm
+            and "voltar" in full_screen_norm
+        )
+
+        if not (is_squad_or_training or is_stats_table):
             return None
 
-        target_lower = target_player_name.strip().lower()
-        player_anchor = None
-        parsed_items = []
+        target_norm = normalize_text(target_player_name)
+        candidate_anchors: List[Dict[str, Any]] = []
+        parsed_items: List[Dict[str, Any]] = []
+        detected_club: Optional[str] = None
 
         for bbox, text, conf in results:
             clean_text = text.strip()
@@ -122,86 +151,122 @@ class OCRScanner:
             metrics = self._get_box_metrics(bbox)
             item = {
                 "text": clean_text,
+                "norm_text": normalize_text(clean_text),
                 "confidence": round(float(conf), 3),
                 "bbox": bbox,
                 **metrics,
             }
             parsed_items.append(item)
 
-            if target_lower in clean_text.lower():
-                # No campo de futebol o nome aparece no canto inferior em y > 80% da tela.
-                # Numa tabela de jogadores, a lista fica no meio da tela (y entre 15% e 80%).
-                H, _, _ = frame.shape
-                if item["center_y"] < H * 0.85:
-                    if player_anchor is None or conf > player_anchor["confidence"]:
-                        player_anchor = item
+            # Detecta o nome do clube no cabeçalho superior esquerdo (ao lado do escudo)
+            if metrics["center_y"] < H * 0.11 and (W * 0.10 < metrics["center_x"] < W * 0.45):
+                if clean_text.upper() not in {"VOLTAR", "JOGADOR"} and len(clean_text) >= 2:
+                    detected_club = clean_text
 
-        if player_anchor is None:
+            if target_norm in item["norm_text"]:
+                # Ignora caso esteja colado na borda inferior extrema (y > 96%)
+                if item["center_y"] < H * 0.96:
+                    candidate_anchors.append(item)
+
+        if not candidate_anchors:
             return None
 
-        H, W, _ = frame.shape
-        player_y = player_anchor["center_y"]
-        player_height = player_anchor["height"]
-        player_min_y = int(player_anchor["min_y"])
-        player_max_y = int(player_anchor["max_y"])
-        vertical_threshold = player_height * 0.8
+        # Ordena candidatos de baixo para cima se for tela de Transferências (para preferir a tabela "Venda Rápida" que tem Overall e Idade)
+        # ou pela confiança
+        best_result: Optional[Dict[str, Any]] = None
 
-        row_items = [
-            item
-            for item in parsed_items
-            if abs(item["center_y"] - player_y) < vertical_threshold
-        ]
-        row_items.sort(key=lambda x: x["min_x"])
-        raw_row_tokens = [item["text"] for item in row_items]
+        for player_anchor in candidate_anchors:
+            player_y = player_anchor["center_y"]
+            player_height = player_anchor["height"]
+            player_min_y = int(player_anchor["min_y"])
+            player_max_y = int(player_anchor["max_y"])
+            vertical_threshold = max(12.0, player_height * 0.85)
 
-        age: Optional[int] = None
-        overall: Optional[int] = None
-        matches: Optional[int] = None
-        goals: Optional[int] = None
-        assists: Optional[int] = None
+            row_items = [
+                item
+                for item in parsed_items
+                if abs(item["center_y"] - player_y) < vertical_threshold
+            ]
+            row_items.sort(key=lambda x: x["min_x"])
+            raw_row_tokens = [item["text"] for item in row_items]
 
-        # CENÁRIO 1: TELA DE TREINAMENTO OU TRANSFERÊNCIAS (Overall e Idade)
-        if is_training_screen or is_transfer_screen:
-            screen_type = "TRAINING_OR_SQUAD"
-            right_items = [item for item in row_items if item["center_x"] > player_anchor["center_x"]]
+            # Detecta a posição na linha (à esquerda do nome do jogador)
+            detected_position: Optional[str] = None
+            for item in row_items:
+                if item["center_x"] < player_anchor["center_x"]:
+                    token_up = item["text"].strip().upper()
+                    if token_up in VALID_POSITIONS:
+                        detected_position = token_up
 
-            clean_integers = []
-            for item in right_items:
-                t = item["text"]
-                if "$" in t or "k" in t.lower() or "-" in t:
-                    continue
-                nums = [int(n) for n in re.findall(r"\b\d+\b", t)]
-                clean_integers.extend(nums)
+            age: Optional[int] = None
+            overall: Optional[int] = None
+            matches: Optional[int] = None
+            goals: Optional[int] = None
+            assists: Optional[int] = None
 
-            for val in clean_integers:
-                if overall is None and 30 <= val <= 99:
-                    overall = val
-                elif age is None and 15 <= val <= 45:
-                    age = val
+            cell_y1 = player_min_y - 3
+            cell_y2 = player_max_y + 5
 
-        # CENÁRIO 2: TELA DE ESTATÍSTICAS DA PARTIDA / TEMPORADA
-        elif is_stats_table:
-            screen_type = "MATCH_STATS"
-            cell_y1 = player_min_y - 2
-            cell_y2 = player_max_y + 4
+            # CENÁRIO 1: TELA DE TREINAMENTO, ELENCO OU TRANSFERÊNCIAS (Overall e Idade)
+            if is_squad_or_training:
+                screen_type = "TRAINING_OR_SQUAD"
+                right_items = [item for item in row_items if item["center_x"] > player_anchor["center_x"]]
 
-            matches = self._read_cell_digit(frame, cell_y1, cell_y2, int(W * 0.475), int(W * 0.520))
-            goals = self._read_cell_digit(frame, cell_y1, cell_y2, int(W * 0.520), int(W * 0.565))
-            assists = self._read_cell_digit(frame, cell_y1, cell_y2, int(W * 0.565), int(W * 0.610))
-        else:
-            return None
+                clean_integers = []
+                for item in right_items:
+                    t = item["text"]
+                    # Ignora valores em dinheiro ($160K, $87K, S80K) e faixas de potencial (79 - 97)
+                    if "$" in t or "k" in t.lower() or "-" in t:
+                        continue
+                    nums = [int(n) for n in re.findall(r"\b\d+\b", t)]
+                    clean_integers.extend(nums)
 
-        return {
-            "screen_type": screen_type,
-            "player_matched": player_anchor["text"],
-            "confidence": player_anchor["confidence"],
-            "raw_row_tokens": raw_row_tokens,
-            "age": age,
-            "overall": overall,
-            "matches": matches,
-            "goals": goals,
-            "assists": assists,
-        }
+                for val in clean_integers:
+                    if overall is None and 30 <= val <= 99:
+                        overall = val
+                    elif age is None and 15 <= val <= 45:
+                        age = val
+
+                # Fallback por célula isolada caso o OCR da tela cheia tenha pulado o número de Pontuação ou Idade
+                if overall is None:
+                    cell_ovr = self._read_cell_digit(frame, cell_y1, cell_y2, int(W * 0.560), int(W * 0.618))
+                    if cell_ovr is not None and 30 <= cell_ovr <= 99:
+                        overall = cell_ovr
+
+                if age is None:
+                    cell_age = self._read_cell_digit(frame, cell_y1, cell_y2, int(W * 0.620), int(W * 0.675))
+                    if cell_age is not None and 15 <= cell_age <= 45:
+                        age = cell_age
+
+            # CENÁRIO 2: TELA DE ESTATÍSTICAS DA PARTIDA / TEMPORADA
+            else:
+                screen_type = "MATCH_STATS"
+                matches = self._read_cell_digit(frame, cell_y1, cell_y2, int(W * 0.475), int(W * 0.520))
+                goals = self._read_cell_digit(frame, cell_y1, cell_y2, int(W * 0.520), int(W * 0.565))
+                assists = self._read_cell_digit(frame, cell_y1, cell_y2, int(W * 0.565), int(W * 0.610))
+
+            candidate_res = {
+                "screen_type": screen_type,
+                "player_matched": player_anchor["text"],
+                "confidence": player_anchor["confidence"],
+                "raw_row_tokens": raw_row_tokens,
+                "position": detected_position,
+                "club_name": detected_club,
+                "age": age,
+                "overall": overall,
+                "matches": matches,
+                "goals": goals,
+                "assists": assists,
+            }
+
+            best_result = candidate_res
+            # Se já encontrou Overall/Idade válidos ou Jogos/Gols válidos, pode parar de procurar outras ocorrências
+            if (screen_type == "TRAINING_OR_SQUAD" and overall is not None) or (
+                screen_type == "MATCH_STATS" and matches is not None
+            ):
+                break
+
+        return best_result
 
 
 # Alias de compatibilidade

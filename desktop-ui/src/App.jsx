@@ -162,12 +162,10 @@ export default function App() {
 
   const [newCareerForm, setNewCareerForm] = useState({
     player_name: '',
-    position: 'AT',
+    position: 'AUTO',
     nationality: 'Brasil',
     target_window_title: '',
     club_name: '',
-    age: 18,
-    overall: 58,
   });
 
   const [newSeasonForm, setNewSeasonForm] = useState({
@@ -399,9 +397,7 @@ export default function App() {
           position: newCareerForm.position,
           nationality: newCareerForm.nationality.trim() || 'Brasil',
           target_window_title: newCareerForm.target_window_title.trim(),
-          club_name: newCareerForm.club_name.trim() || 'Ortri',
-          age: Number(newCareerForm.age) || 18,
-          overall: Number(newCareerForm.overall) || 58,
+          club_name: newCareerForm.club_name.trim() || 'Detectar do jogo',
         }),
       });
       if (res.ok) {
@@ -409,12 +405,10 @@ export default function App() {
         setShowNewCareerModal(false);
         setNewCareerForm({
           player_name: '',
-          position: 'AT',
+          position: 'AUTO',
           nationality: 'Brasil',
           target_window_title: newCareerForm.target_window_title,
           club_name: '',
-          age: 18,
-          overall: 58,
         });
         await fetchCareers();
         setSelectedCareerId(created.career.id);
@@ -686,7 +680,7 @@ export default function App() {
                   <div className="flex items-start justify-between relative z-10">
                     <div className="flex flex-col items-center leading-none">
                       <span className="font-display text-5xl font-extrabold tracking-tighter tabular-nums">
-                        {currentSeason?.overall ?? 58}
+                        {currentSeason?.overall ? currentSeason.overall : '--'}
                       </span>
                       <span className="font-display text-lg font-extrabold uppercase tracking-wider mt-0.5">
                         {posStyle.label}
@@ -736,7 +730,7 @@ export default function App() {
                     </div>
                     <div className={`px-2 py-1 rounded flex items-center justify-between font-bold tabular-nums ${cardStyle.statBoxBg}`}>
                       <span className="opacity-75 text-[10px]">IDA</span>
-                      <span>{currentSeason?.age ?? 18}</span>
+                      <span>{currentSeason?.age ? currentSeason.age : '--'}</span>
                     </div>
                   </div>
                 </div>
@@ -756,7 +750,7 @@ export default function App() {
                         </span>
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-white/10 text-xs font-bold text-[#FACC15]">
                           <Star className="w-3.5 h-3.5 fill-[#DC2626] text-[#DC2626]" />
-                          Auge OVR: {totals.peak_overall}
+                          Auge OVR: {totals.peak_overall || '--'}
                         </span>
                         {/* Seta de Evolução verde clássica do treino do WSC */}
                         <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded bg-[#22C55E]/20 text-[#22C55E] text-xs font-extrabold">
@@ -774,7 +768,7 @@ export default function App() {
                           Clube: <span className="text-[#FACC15]">{currentSeason?.club_name}</span>
                         </span>
                         <span>•</span>
-                        <span>{currentSeason?.age} anos</span>
+                        <span>{currentSeason?.age ? `${currentSeason.age} anos` : 'Idade auto'}</span>
                         <span>•</span>
                         <span>Temporada #{currentSeason?.season_number}</span>
                         <span>•</span>
@@ -1090,10 +1084,10 @@ export default function App() {
                             <div className="col-span-3 font-extrabold text-[#111526] truncate">
                               {s.club_name}
                             </div>
-                            <div className="col-span-1 text-center font-semibold">{s.age}</div>
+                            <div className="col-span-1 text-center font-semibold">{s.age || '--'}</div>
                             <div className="col-span-2 flex items-center justify-center gap-1.5">
                               <Star className="w-3.5 h-3.5 fill-[#991B1B] text-[#991B1B]" />
-                              <span className="font-extrabold">{s.overall}</span>
+                              <span className="font-extrabold">{s.overall || '--'}</span>
                             </div>
                             <div className="col-span-1 text-center">{s.matches}</div>
                             <div className="col-span-1 text-center font-extrabold text-[#0F5132]">
@@ -1126,7 +1120,7 @@ export default function App() {
                         </p>
                       </div>
                       <span className="px-2.5 py-1 rounded bg-white/10 text-xs font-extrabold text-[#FACC15]">
-                        ★ {currentSeason?.overall ?? 58}
+                        ★ {currentSeason?.overall || '--'}
                       </span>
                     </div>
 
@@ -1314,19 +1308,19 @@ export default function App() {
       {/* MODAL: NOVO JOGADOR */}
       {showNewCareerModal && (
         <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
-          <div className="bg-[#181D38] border-2 border-[#353E70] rounded-xl max-w-lg w-full p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#272F59]">
+          <div className="bg-[#121814] border-2 border-white/20 rounded-xl max-w-lg w-full p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/10">
               <div>
                 <h3 className="font-display text-2xl font-extrabold uppercase text-white">
                   Novo Jogador no WSC
                 </h3>
                 <p className="text-xs text-slate-300">
-                  Preencha os dados como aparecem na escalação do jogo
+                  Idade, Pontuação (OVR), Posição e Clube são lidos automaticamente da tela do jogo!
                 </p>
               </div>
               <button
                 onClick={() => setShowNewCareerModal(false)}
-                className="p-1.5 rounded hover:bg-[#252C52] text-slate-300"
+                className="p-1.5 rounded hover:bg-white/10 text-slate-300"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1335,106 +1329,24 @@ export default function App() {
             <form onSubmit={handleCreateCareer} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-200 mb-1">
-                  Nome do Jogador (exatamente como está no jogo)
+                  Nome do Jogador (como aparece na escalação do WSC) *
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="Ex: Maicon Ramos"
+                  placeholder="Ex: Maicon Ramos, Alex Júnior..."
                   value={newCareerForm.player_name}
                   onChange={(e) =>
                     setNewCareerForm({ ...newCareerForm, player_name: e.target.value })
                   }
-                  className="w-full bg-[#10142C] border border-[#353E70] rounded-lg px-3.5 py-2.5 text-sm font-bold text-white focus:border-[#FACC15] focus:outline-none"
+                  className="w-full bg-[#0B0F0C] border border-white/20 rounded-lg px-3.5 py-2.5 text-sm font-bold text-white focus:border-[#FACC15] focus:outline-none"
                 />
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-200 mb-1">Posição</label>
-                  <select
-                    value={newCareerForm.position}
-                    onChange={(e) =>
-                      setNewCareerForm({ ...newCareerForm, position: e.target.value })
-                    }
-                    className="w-full bg-[#10142C] border border-[#353E70] rounded-lg px-3 py-2.5 text-sm font-bold text-white"
-                  >
-                    <option value="AT">AT (Atacante)</option>
-                    <option value="PE">PE (Ponta)</option>
-                    <option value="PD">PD (Meia Dir.)</option>
-                    <option value="MO">MO (Meia Ofensivo)</option>
-                    <option value="VL">VL (Volante)</option>
-                    <option value="ZG">ZG (Zagueiro)</option>
-                    <option value="GL">GL (Goleiro)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-200 mb-1">
-                    Nacionalidade
-                  </label>
-                  <input
-                    type="text"
-                    value={newCareerForm.nationality}
-                    onChange={(e) =>
-                      setNewCareerForm({ ...newCareerForm, nationality: e.target.value })
-                    }
-                    className="w-full bg-[#10142C] border border-[#353E70] rounded-lg px-3 py-2.5 text-sm font-bold text-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-200 mb-1">
-                    Clube Atual
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ex: Ortri"
-                    value={newCareerForm.club_name}
-                    onChange={(e) =>
-                      setNewCareerForm({ ...newCareerForm, club_name: e.target.value })
-                    }
-                    className="w-full bg-[#10142C] border border-[#353E70] rounded-lg px-3 py-2.5 text-sm font-bold text-white"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-200 mb-1">
-                    Idade (IDA.)
-                  </label>
-                  <input
-                    type="number"
-                    min={15}
-                    max={45}
-                    value={newCareerForm.age}
-                    onChange={(e) => setNewCareerForm({ ...newCareerForm, age: e.target.value })}
-                    className="w-full bg-[#10142C] border border-[#353E70] rounded-lg px-3 py-2.5 text-sm font-bold text-white tabular-nums"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-200 mb-1">
-                    Pontuação (OVR)
-                  </label>
-                  <input
-                    type="number"
-                    min={30}
-                    max={99}
-                    value={newCareerForm.overall}
-                    onChange={(e) =>
-                      setNewCareerForm({ ...newCareerForm, overall: e.target.value })
-                    }
-                    className="w-full bg-[#10142C] border border-[#353E70] rounded-lg px-3 py-2.5 text-sm font-bold text-[#FACC15] tabular-nums"
-                  />
-                </div>
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-xs font-bold text-slate-200">
-                    Janela do Emulador
+                    Janela do Emulador *
                   </label>
                   <button
                     type="button"
@@ -1455,7 +1367,7 @@ export default function App() {
                         target_window_title: e.target.value,
                       })
                     }
-                    className="w-full bg-[#10142C] border border-[#353E70] rounded-lg px-3 py-2.5 text-sm font-bold text-white"
+                    className="w-full bg-[#0B0F0C] border border-white/20 rounded-lg px-3 py-2.5 text-sm font-bold text-white"
                   >
                     {openWindows.map((w) => (
                       <option key={w} value={w}>
@@ -1474,16 +1386,71 @@ export default function App() {
                         target_window_title: e.target.value,
                       })
                     }
-                    className="w-full bg-[#10142C] border border-[#353E70] rounded-lg px-3 py-2.5 text-sm font-bold text-white"
+                    className="w-full bg-[#0B0F0C] border border-white/20 rounded-lg px-3 py-2.5 text-sm font-bold text-white"
                   />
                 )}
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-200 mb-1">Posição</label>
+                  <select
+                    value={newCareerForm.position}
+                    onChange={(e) =>
+                      setNewCareerForm({ ...newCareerForm, position: e.target.value })
+                    }
+                    className="w-full bg-[#0B0F0C] border border-white/20 rounded-lg px-3 py-2.5 text-sm font-bold text-white"
+                  >
+                    <option value="AUTO">Automático (Jogo)</option>
+                    <option value="AT">AT (Atacante)</option>
+                    <option value="PE">PE (Ponta)</option>
+                    <option value="PD">PD (Meia Dir.)</option>
+                    <option value="MO">MO (Meia Ofensivo)</option>
+                    <option value="VL">VL (Volante)</option>
+                    <option value="ZG">ZG (Zagueiro)</option>
+                    <option value="GL">GL (Goleiro)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-200 mb-1">
+                    Nacionalidade
+                  </label>
+                  <input
+                    type="text"
+                    value={newCareerForm.nationality}
+                    onChange={(e) =>
+                      setNewCareerForm({ ...newCareerForm, nationality: e.target.value })
+                    }
+                    className="w-full bg-[#0B0F0C] border border-white/20 rounded-lg px-3 py-2.5 text-sm font-bold text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-200 mb-1">
+                    Clube (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Auto (lê do jogo)"
+                    value={newCareerForm.club_name}
+                    onChange={(e) =>
+                      setNewCareerForm({ ...newCareerForm, club_name: e.target.value })
+                    }
+                    className="w-full bg-[#0B0F0C] border border-white/20 rounded-lg px-3 py-2.5 text-sm font-bold text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-[#22C55E]/15 border border-[#22C55E]/30 text-xs text-emerald-200 font-medium">
+                💡 Deixe a tela de <strong>Treinamento</strong>, <strong>Elenco</strong> ou <strong>Estatísticas</strong> aberta no emulador ao criar: o leitor puxará a Idade, o Overall, a Posição e o Clube automaticamente!
               </div>
 
               <div className="flex justify-end gap-2.5 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowNewCareerModal(false)}
-                  className="px-4 py-2 rounded-lg bg-[#252C52] text-xs font-bold text-slate-200"
+                  className="px-4 py-2 rounded-lg bg-white/10 text-xs font-bold text-slate-200"
                 >
                   Cancelar
                 </button>
@@ -1491,7 +1458,7 @@ export default function App() {
                   type="submit"
                   className="px-5 py-2 rounded-lg bg-[#22C55E] hover:bg-[#16A34A] text-[#07170D] text-xs font-extrabold uppercase"
                 >
-                  Criar Jogador
+                  Criar e Ler do Jogo
                 </button>
               </div>
             </form>

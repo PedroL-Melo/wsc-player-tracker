@@ -169,6 +169,7 @@ class BackgroundWatcherService:
 
         db = SessionLocal()
         try:
+            career = db.query(CareerProfile).filter(CareerProfile.id == self.active_career_id).first()
             current_season = (
                 db.query(SeasonLog)
                 .filter(SeasonLog.career_id == self.active_career_id)
@@ -177,6 +178,18 @@ class BackgroundWatcherService:
             )
             if not current_season:
                 return
+
+            # Atualiza automaticamente a posição ou clube inicial se ainda não definidos
+            metadata_changed = False
+            detected_pos = ocr_data.get("position")
+            if career and detected_pos and (not career.position or career.position == "AUTO"):
+                career.position = detected_pos
+                metadata_changed = True
+
+            detected_club = ocr_data.get("club_name")
+            if detected_club and current_season.club_name in {"", "Clube Inicial", "Auto", "Detectar do jogo"}:
+                current_season.club_name = detected_club
+                metadata_changed = True
 
             new_age = current_season.age
             new_ovr = current_season.overall
@@ -217,10 +230,10 @@ class BackgroundWatcherService:
             }
 
             # Anti-Spam: se nada mudou, ignora
-            if self.last_known_state == new_state and db_state == new_state:
+            if not metadata_changed and self.last_known_state == new_state and db_state == new_state:
                 return
 
-            if db_state == new_state:
+            if not metadata_changed and db_state == new_state:
                 self.last_known_state = new_state
                 return
 
@@ -263,7 +276,8 @@ class BackgroundWatcherService:
                     "timestamp": ev.timestamp.isoformat(),
                 })
 
-            if new_state["overall"] != current_season.overall:
+            # Só gera evento de OVR_UP se o Overall anterior já havia sido lido (> 0)
+            if current_season.overall > 0 and new_state["overall"] != current_season.overall:
                 ev = EvolutionEvent(
                     career_id=self.active_career_id,
                     event_type="OVR_UP",

@@ -55,13 +55,13 @@ app.add_middleware(
 # ============================================================================
 
 class CareerCreateRequest(BaseModel):
-    player_name: str = Field(..., min_length=1, examples=["Endrick"])
+    player_name: str = Field(..., min_length=1, examples=["Maicon Ramos"])
     nationality: Optional[str] = Field(default="Brasil", examples=["Brasil"])
-    position: Optional[str] = Field(default="ATA", examples=["ATA"])
-    target_window_title: str = Field(..., min_length=1, examples=["MuMu Player"])
-    club_name: str = Field(default="Clube Inicial", examples=["Palmeiras"])
-    age: int = Field(default=17, ge=15, le=45, examples=[17])
-    overall: int = Field(default=65, ge=30, le=99, examples=[65])
+    position: Optional[str] = Field(default="AUTO", examples=["AT"])
+    target_window_title: str = Field(..., min_length=1, examples=["Android Device"])
+    club_name: Optional[str] = Field(default="Detectar do jogo", examples=["Ortri"])
+    age: Optional[int] = Field(default=0, ge=0, le=45)
+    overall: Optional[int] = Field(default=0, ge=0, le=99)
 
 
 class NewSeasonRequest(BaseModel):
@@ -133,12 +133,50 @@ def get_open_windows() -> Dict[str, List[str]]:
 
 
 @app.post("/careers", tags=["Carreiras"], status_code=201)
-def create_career(payload: CareerCreateRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
-    """Cria um novo perfil de jogador (CareerProfile) e inicializa a Temporada 1 (SeasonLog)."""
+async def create_career(payload: CareerCreateRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """
+    Cria um novo perfil de jogador (CareerProfile), tenta ler automaticamente Idade, Overall,
+    Posição e Clube da janela do emulador, inicializa a Temporada 1 e já ativa o Watcher.
+    """
+    import asyncio
+
+    initial_pos = (payload.position or "AUTO").strip()
+    initial_club = (payload.club_name or "").strip() or "Detectar do jogo"
+    initial_age = payload.age if payload.age and 15 <= payload.age <= 45 else 0
+    initial_ovr = payload.overall if payload.overall and 30 <= payload.overall <= 99 else 0
+    initial_matches = 0
+    initial_goals = 0
+    initial_assists = 0
+
+    # Tenta leitura instantânea da janela do emulador no momento do cadastro
+    try:
+        ocr_data = await asyncio.to_thread(
+            watcher_service._capture_and_scan_sync,
+            payload.target_window_title.strip(),
+            payload.player_name.strip(),
+        )
+        if ocr_data:
+            if ocr_data.get("position") and initial_pos in {"", "AUTO"}:
+                initial_pos = ocr_data["position"]
+            if ocr_data.get("club_name") and initial_club in {"", "Clube Inicial", "Detectar do jogo"}:
+                initial_club = ocr_data["club_name"]
+            if ocr_data.get("age") and 15 <= ocr_data["age"] <= 45:
+                initial_age = ocr_data["age"]
+            if ocr_data.get("overall") and 30 <= ocr_data["overall"] <= 99:
+                initial_ovr = ocr_data["overall"]
+            if ocr_data.get("matches") is not None and ocr_data["matches"] >= 0:
+                initial_matches = ocr_data["matches"]
+            if ocr_data.get("goals") is not None and ocr_data["goals"] >= 0:
+                initial_goals = ocr_data["goals"]
+            if ocr_data.get("assists") is not None and ocr_data["assists"] >= 0:
+                initial_assists = ocr_data["assists"]
+    except Exception as exc:
+        print(f"[CreateCareer] Aviso: leitura inicial automática falhou ({exc}). O Watcher atualizará em seguida.")
+
     career = CareerProfile(
         player_name=payload.player_name.strip(),
-        nationality=payload.nationality,
-        position=payload.position,
+        nationality=payload.nationality or "Brasil",
+        position=initial_pos if initial_pos != "AUTO" else "AT",
         target_window_title=payload.target_window_title.strip(),
     )
     db.add(career)
@@ -147,18 +185,24 @@ def create_career(payload: CareerCreateRequest, db: Session = Depends(get_db)) -
     season_one = SeasonLog(
         career_id=career.id,
         season_number=1,
-        club_name=payload.club_name.strip(),
-        age=payload.age,
-        overall=payload.overall,
-        matches=0,
-        goals=0,
-        assists=0,
+        club_name=initial_club,
+        age=initial_age,
+        overall=initial_ovr,
+        matches=initial_matches,
+        goals=initial_goals,
+        assists=initial_assists,
         trophies_count=0,
     )
     db.add(season_one)
     db.commit()
     db.refresh(career)
     db.refresh(season_one)
+
+    # Já inicia o monitoramento automático para o novo jogador
+    try:
+        await watcher_service.start(career.id)
+    except Exception:
+        pass
 
     return {
         "career": serialize_career(career),
