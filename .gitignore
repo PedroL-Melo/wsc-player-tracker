@@ -1,0 +1,12 @@
+# Python
+backend-engine/venv/
+__pycache__/
+*.py[cod]
+*.db
+*.sqlite3
+
+# Node / Electron / Vite
+desktop-ui/node_modules/
+desktop-ui/dist/
+npm-debug.log*
+.DS_Store

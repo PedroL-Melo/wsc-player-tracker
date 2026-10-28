@@ -1,0 +1,30 @@
+{
+  "name": "wsc-player-tracker-desktop",
+  "private": true,
+  "version": "1.0.0",
+  "description": "WSC Player Career Tracker - Interface Desktop (Electron + React + TailwindCSS)",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "vite --port 5173 --strictPort",
+    "build": "vite build",
+    "preview": "vite preview --port 5173",
+    "electron": "wait-on http://127.0.0.1:5173 && electron .",
+    "desktop": "concurrently -k \"npm run dev\" \"npm run electron\""
+  },
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^2.15.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.0",
+    "electron": "^33.2.1",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "vite": "^6.0.5",
+    "wait-on": "^8.0.1"
+  }
+}

@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+websockets
+sqlalchemy
+opencv-python
+mss
+pygetwindow
+pywin32
+easyocr
+numpy
+pydantic
