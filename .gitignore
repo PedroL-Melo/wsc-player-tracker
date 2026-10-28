@@ -1,5 +1,8 @@
 # Python
 backend-engine/venv/
+backend-engine/build/
+backend-engine/dist/
+*.spec
 __pycache__/
 *.py[cod]
 *.db
@@ -8,5 +11,6 @@ __pycache__/
 # Node / Electron / Vite
 desktop-ui/node_modules/
 desktop-ui/dist/
+desktop-ui/release/
 npm-debug.log*
 .DS_Store

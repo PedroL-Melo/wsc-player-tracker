@@ -1,15 +1,55 @@
 {
   "name": "wsc-player-tracker-desktop",
   "private": true,
-  "version": "1.0.0",
-  "description": "WSC Player Career Tracker - Interface Desktop (Electron + React + TailwindCSS)",
+  "version": "0.7.0",
+  "description": "WSC Player Career Tracker (Beta 0.7) - Interface Desktop (Electron + React + TailwindCSS)",
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite --port 5173 --strictPort",
     "build": "vite build",
     "preview": "vite preview --port 5173",
     "electron": "wait-on http://127.0.0.1:5173 && electron .",
-    "desktop": "concurrently -k \"npm run dev\" \"npm run electron\""
+    "desktop": "concurrently -k \"npm run dev\" \"npm run electron\"",
+    "dist": "vite build && electron-builder --win --x64"
+  },
+  "build": {
+    "appId": "com.pedromelo.wscplayertracker",
+    "productName": "WSC Player Career Tracker",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../backend-engine/dist/wsc-backend",
+        "to": "wsc-backend",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "artifactName": "WSC-Player-Tracker-Beta-0.7-Setup.${ext}",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "WSC Player Career Tracker"
+    }
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

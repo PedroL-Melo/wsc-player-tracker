@@ -1,6 +1,17 @@
-# ⚽ WSC Player Career Tracker (Zero-Click AI Edition)
+# ⚽ WSC Player Career Tracker — Versão Beta 0.7
 
-> **Rastreador autônomo de carreira de jogador para World Soccer Champs (WSC)** utilizando **Visão Computacional na GPU (EasyOCR + CUDA)**, **FastAPI**, **WebSockets**, **SQLite** e uma interface desktop moderna inspirada no EA FC / Sofascore construída em **Electron + React + TailwindCSS**.
+> **Rastreador autônomo de carreira de jogador para World Soccer Champs (WSC)** utilizando **Visão Computacional (EasyOCR + CUDA)**, **FastAPI**, **WebSockets**, **SQLite** e uma interface desktop inspirada no próprio **World Soccer Champs + EA Sports FC + Sofascore** sobre gramado listrado.
+
+---
+
+## 📥 Download Direto do Aplicativo (Windows `.exe`)
+
+Não quer instalar nada pelo terminal? Baixe o instalador oficial da **Versão Beta 0.7**, clique duas vezes e comece a jogar:
+
+[![Baixar Instalador Windows - Versão Beta 0.7](https://img.shields.io/badge/⬇_BAIXAR_INSTALADOR_(.EXE)-Versão_Beta_0.7-22C55E?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/PedroL-Melo/wsc-player-tracker/releases/download/v0.7-beta/WSC-Player-Tracker-Beta-0.7-Setup.exe)
+
+- 🔗 **Link direto para o `.exe` (Beta 0.7):** [WSC-Player-Tracker-Beta-0.7-Setup.exe](https://github.com/PedroL-Melo/wsc-player-tracker/releases/download/v0.7-beta/WSC-Player-Tracker-Beta-0.7-Setup.exe)
+- 📦 **Página de Releases (Todas as versões):** [Acessar Releases no GitHub](https://github.com/PedroL-Melo/wsc-player-tracker/releases/latest)
 
 ---
 
@@ -169,13 +180,25 @@ npm run desktop
 
 1. Abra o seu emulador (ex: **MuMu Player**) com o **World Soccer Champs**.
 2. Abra o **WSC Player Career Tracker**.
-3. Clique em **"+ Nova Carreira"**:
-   - Digite o nome do jogador exatamente como aparece no jogo (ex: `Maicon Ramos`).
+3. Clique em **"+ Novo Jogador"**:
+   - Digite apenas o **nome do jogador** como aparece no jogo (ex: `Alex Júnior` ou `Jose Lira`).
    - Selecione a janela do emulador detectada (ex: `Android Device` ou `MuMu Player`).
-   - Defina posição, clube inicial, idade e overall inicial.
-4. Clique no botão **"Iniciar Olho Biônico"** no topo da tela:
-   - O indicador mudará para **"OLHO BIÔNICO ATIVO"** pulsando em verde.
-5. Jogue normalmente! Ao final de cada partida, quando a tela de notas/estatísticas for exibida, o tracker registrará os jogos, gols e assistências instantaneamente no dashboard!
+   - **Idade, Pontuação (OVR), Posição e Clube são lidos automaticamente** da tela do jogo!
+4. O monitoramento (**Watcher Ativo**) já inicia automaticamente:
+   - Ao abrir a tela de **Elenco / Treinamento / Transferências**, o sistema captura a **Idade**, **Overall**, **Posição** e **Clube**.
+   - Ao final de cada partida, na tela de estatísticas do time, o tracker atualiza **Jogos**, **Gols** e **Assistências** instantaneamente no painel!
+
+---
+
+## 📦 Como Gerar o Instalador `.exe` (Para Desenvolvedores)
+
+Para compilar o motor Python (`PyInstaller`) e empacotar o instalador Windows (`electron-builder`) em um único `.exe`:
+
+```powershell
+.\build-installer.bat
+```
+
+O instalador final `WSC-Player-Tracker-Beta-0.7-Setup.exe` será gerado dentro da pasta `desktop-ui/release/`.
 
 ---
 
